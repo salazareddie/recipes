@@ -7,7 +7,7 @@
 * 2 teaspoons dried oregano
 * 2 teaspoons salt, or more, to taste
 * 1 teaspoon ground black pepper
-* 4 pound pork shoulder (pork butt). Keep fat and bone
+* 4 pound pork shoulder (pork butt). Keep fat and bone on. 
 * 4-6 cloves garlic, peeled
 * 2 onions, quartered
 * 2 oranges, juiced
