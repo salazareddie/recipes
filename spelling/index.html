@@ -146,12 +146,15 @@ h1 { margin: 0 0 4px; font-size: 1.6rem; font-weight: 700; color: var(--yellow);
 
   <!-- Menu -->
   <section id="menu">
-    <p class="sub">Ten words. Two ways to play.</p>
+    <p class="sub">Ten words. Three ways to play.</p>
     <div class="row">
       <button class="btn main menu" id="playBuild">Build the word<span>Hear it, hide it, spell it with letter tiles</span></button>
     </div>
     <div class="row">
       <button class="btn menu" id="playSpot">Spot the right spelling<span>Three lookalikes. Only one is correct</span></button>
+    </div>
+    <div class="row">
+      <button class="btn menu" id="playHard">Hard mode<span>Hear it and spell it. No looking first, no peeking</span></button>
     </div>
     <p class="wordlist" id="wordlist"></p>
   </section>
@@ -277,7 +280,13 @@ function startGame(which) {
   mode = which;
   order = shuffle(WORDS);
   idx = 0; results = [];
-  if (mode === "build") showLook(); else showSpot();
+  showRound();
+}
+
+function showRound() {
+  if (mode === "build") showLook();
+  else if (mode === "hard") { drawStars(); showSpell(); speak(word()); }
+  else showSpot();
 }
 
 /* ---------- Game 1: build the word ---------- */
@@ -294,7 +303,8 @@ function showSpell() {
   $("helpRow").classList.remove("hidden");
   $("nextRow").classList.add("hidden");
   $("cheer").textContent = "";
-  $("spellPrompt").textContent = "Tap the letters in order.";
+  $("spellPrompt").textContent = spellPrompt();
+  $("peekBtn").classList.toggle("hidden", mode === "hard");
   pos = 0; helped = false;
 
   const w = word();
@@ -419,7 +429,7 @@ function nextWord() {
   idx++;
   helped = false;
   if (idx >= order.length) return showFinish();
-  if (mode === "build") showLook(); else showSpot();
+  showRound();
 }
 
 function showFinish() {
@@ -439,6 +449,10 @@ function showFinish() {
   speak("You did it!");
 }
 
+function spellPrompt() {
+  return mode === "hard" ? "Listen, then tap the letters in order." : "Tap the letters in order.";
+}
+
 function clearHint() {
   clearTimeout(hintTimer);
   document.querySelectorAll(".tile.hint").forEach(t => t.classList.remove("hint"));
@@ -447,6 +461,7 @@ function clearHint() {
 $("wordlist").textContent = WORDS.join(" · ");
 $("playBuild").addEventListener("click", () => startGame("build"));
 $("playSpot").addEventListener("click", () => startGame("spot"));
+$("playHard").addEventListener("click", () => startGame("hard"));
 $("hideBtn").addEventListener("click", showSpell);
 $("hearLook").addEventListener("click", () => speak(word()));
 $("hearSpell").addEventListener("click", () => speak(word()));
@@ -462,7 +477,7 @@ $("peekBtn").addEventListener("click", () => {
   p.textContent = word();
   p.style.fontSize = "2rem";
   setTimeout(() => {
-    p.textContent = "Tap the letters in order.";
+    p.textContent = spellPrompt();
     p.style.fontSize = "";
   }, 2000);
 });
