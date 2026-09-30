@@ -118,6 +118,35 @@ input.ans::placeholder { color: #B8AD8A; }
 .alg input { font-family: "Courier New", monospace; letter-spacing: .08em; justify-self: end; }
 .alg .note { grid-column: 2; text-align: right; color: var(--chalk-dim); font-size: .85rem; margin-top: -4px; }
 
+/* long division workspace */
+.ld { display: inline-grid; gap: 4px 2px; margin: 4px auto 6px; align-items: end; }
+.ld .lab { font-family: "Courier New", monospace; font-size: 1.6rem; font-weight: 700; text-align: right; padding-right: 4px; white-space: nowrap; }
+.ld .lab.sign { color: var(--chalk-dim); }
+.ld .dd {
+  font-family: "Courier New", monospace; font-size: 1.8rem; font-weight: 700; text-align: center;
+  border-top: 3px solid var(--chalk); padding-top: 2px; cursor: grab; touch-action: none; user-select: none;
+  border-radius: 4px;
+}
+.ld .dd.first { border-left: 3px solid var(--chalk); border-top-left-radius: 14px; }
+.ld .dd.sel { background: var(--blue); color: var(--tile-ink); }
+.ld input.dg {
+  width: 100%; height: 2.4rem; padding: 0; text-align: center;
+  font-family: "Courier New", monospace; font-size: 1.55rem; font-weight: 700;
+  background: rgba(255,255,255,.07); color: var(--chalk);
+  border: none; border-bottom: 2px dashed var(--chalk-faint); border-radius: 4px;
+}
+.ld input.dg.q { background: rgba(247,212,106,.15); }
+.ld input.dg.prod { border-bottom: 3px solid var(--chalk); }
+.ld input.dg.brought { color: var(--blue); }
+.ld input.dg.right { background: var(--yellow); color: var(--tile-ink); }
+.ld input.dg.wrong { background: var(--pink); color: var(--tile-ink); animation: shake .35s; }
+.ghost {
+  position: fixed; pointer-events: none; z-index: 10; transform: translate(-50%, -60%);
+  font-family: "Courier New", monospace; font-size: 2rem; font-weight: 700;
+  background: var(--blue); color: var(--tile-ink); border-radius: 8px; padding: 0 8px;
+}
+.tip { font-size: .95rem; color: var(--chalk-dim); margin: 0 0 10px; line-height: 1.5; }
+
 /* multiple choice */
 .choices { display: flex; flex-direction: column; gap: 10px; align-items: center; margin: 6px 0; }
 .choice {
@@ -420,6 +449,26 @@ function divSteps(N, d) {
   return steps;
 }
 
+// The standard written layout: quotient digits plus alternating product / difference rows.
+function divLayout(N, d) {
+  const s = String(N), n = s.length, quot = Array(n).fill(""), rows = [];
+  const blank = kind => ({ kind, cells: Array(n).fill(""), brought: -1 });
+  const place = (row, str, end) => { for (let j = 0; j < str.length; j++) row.cells[end - str.length + 1 + j] = str[j]; };
+  let cur = 0, started = false, last = null;
+  for (let i = 0; i < n; i++) {
+    cur = cur * 10 + +s[i];
+    if (!started && cur < d && i < n - 1) continue;
+    if (started) { last.cells[i] = s[i]; last.brought = i; }
+    started = true;
+    const q = Math.floor(cur / d), m = q * d, rem = cur - m;
+    quot[i] = String(q);
+    const prod = blank("prod"), diff = blank("diff");
+    place(prod, String(m), i); place(diff, String(rem), i);
+    rows.push(prod, diff); last = diff; cur = rem;
+  }
+  return { quot, rows };
+}
+
 function genDiv() {
   const two = Math.random() < 0.4;
   const d = two ? R(11, 29) : R(3, 9);
@@ -427,13 +476,115 @@ function genDiv() {
   if (Math.random() < 0.4) N = d * R(two ? 12 : 21, two ? 99 : 999);
   else N = two ? R(250, 2999) : (Math.random() < 0.5 ? R(100, 999) : R(1000, 9999));
   const q = Math.floor(N / d), r = N % d;
+  const s = String(N), n = s.length, sol = divLayout(N, d), nRows = 2 * n;
+  const cell = (r, c, cls) => `<input class="dg ${cls}" data-r="${r}" data-c="${c}" type="text" inputmode="numeric" autocomplete="off" aria-label="row ${r + 2} column ${c + 1}">`;
+  let grid = `<span></span>` + s.split("").map((_, c) => cell(-1, c, "q")).join("");
+  grid += `<span class="lab">${d})</span>` + s.split("").map((ch, c) => `<span class="dd${c ? "" : " first"}" data-c="${c}">${ch}</span>`).join("");
+  for (let r = 0; r < nRows; r++) {
+    const prod = r % 2 === 0;
+    grid += `<span class="lab${prod ? " sign" : ""}">${prod ? "−" : ""}</span>` + s.split("").map((_, c) => cell(r, c, prod ? "wk prod" : "wk")).join("");
+  }
   return {
     title: "➗ Long division",
-    html: `<div class="big">${fmt(W(N))} ÷ ${d}</div>
-      <p class="prompt">Quotient ${inp(W(q))} &nbsp; R ${inp(W(r), 3)}</p>
-      <p class="prompt" style="font-size:.95rem;color:var(--chalk-dim)">No remainder? Type 0.</p>`,
+    html: `<div class="big" style="font-size:1.8rem">${fmt(W(N))} ÷ ${d}</div>
+      <p class="tip">Type one digit per box. Write the quotient in the top row.
+        To bring a digit down, drag it from ${fmt(W(N))}, or tap it and then tap a box.</p>
+      <div class="ld" style="grid-template-columns: auto repeat(${n}, 2.3rem)">${grid}</div>
+      <p class="prompt">Remainder: R ${inp(W(r), 3)}</p>
+      <div class="row" style="margin-top:4px"><button class="btn small" id="clearWork">Erase my work</button></div>`,
     explain: `<ol>${divSteps(N, d).map(s => `<li>${s}</li>`).join("")}</ol>
-      Answer: <b>${fmt(W(q))} R ${r}</b>. Check: ${fmt(W(q))} × ${d}${r ? ` + ${r}` : ""} = ${fmt(W(N))}`
+      Answer: <b>${fmt(W(q))} R ${r}</b>. Check: ${fmt(W(q))} × ${d}${r ? ` + ${r}` : ""} = ${fmt(W(N))}`,
+    setup(box, api) {
+      const cells = [...box.querySelectorAll("input.dg")];
+      const at = (r, c) => box.querySelector(`input.dg[data-r="${r}"][data-c="${c}"]`);
+      const rem = box.querySelector("input.ans");
+      let sel = null;
+      const put = (el, digit) => { el.value = digit; el.classList.add("brought"); el.classList.remove("right", "wrong"); };
+      const clearSel = () => { sel = null; box.querySelectorAll(".dd.sel").forEach(x => x.classList.remove("sel")); };
+
+      cells.forEach(el => {
+        const r = +el.dataset.r, c = +el.dataset.c;
+        el.addEventListener("input", () => {
+          const v = el.value.replace(/\D/g, "").slice(-1);
+          el.value = v; el.classList.remove("brought", "right", "wrong");
+          if (v) { const nx = at(r, c + 1); if (nx) nx.focus(); }
+        });
+        el.addEventListener("keydown", e => {
+          const move = { ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0] }[e.key];
+          if (move) { const t = at(r + move[0], c + move[1]); if (t) { e.preventDefault(); t.focus(); } }
+          else if (e.key === "Backspace" && !el.value) { const t = at(r, c - 1); if (t) { e.preventDefault(); t.value = ""; t.focus(); } }
+          else if (e.key === "Enter") { e.preventDefault(); check(); }
+        });
+        el.addEventListener("click", () => { if (sel !== null && r >= 0 && !done) { put(el, sel); clearSel(); } });
+      });
+
+      // drag a dividend digit down (or tap it, then tap a box)
+      box.querySelectorAll(".dd").forEach(dd => {
+        dd.addEventListener("pointerdown", e => {
+          if (done) return;
+          e.preventDefault();
+          const x0 = e.clientX, y0 = e.clientY;
+          let ghost = null;
+          const onMove = ev => {
+            if (!ghost && Math.hypot(ev.clientX - x0, ev.clientY - y0) > 6) {
+              ghost = document.createElement("div"); ghost.className = "ghost"; ghost.textContent = dd.textContent;
+              document.body.appendChild(ghost);
+            }
+            if (ghost) { ghost.style.left = ev.clientX + "px"; ghost.style.top = ev.clientY + "px"; }
+          };
+          const onUp = ev => {
+            window.removeEventListener("pointermove", onMove);
+            window.removeEventListener("pointerup", onUp);
+            window.removeEventListener("pointercancel", onUp);
+            if (ghost) {
+              ghost.remove();
+              const t = document.elementFromPoint(ev.clientX, ev.clientY);
+              const target = t && t.closest && t.closest("input.dg.wk");
+              if (target && box.contains(target)) put(target, dd.textContent);
+              clearSel();
+            } else {
+              const was = dd.classList.contains("sel");
+              clearSel();
+              if (!was) { sel = dd.textContent; dd.classList.add("sel"); }
+            }
+          };
+          window.addEventListener("pointermove", onMove);
+          window.addEventListener("pointerup", onUp);
+          window.addEventListener("pointercancel", onUp);
+        });
+      });
+
+      box.querySelector("#clearWork").addEventListener("click", () => {
+        if (done) return;
+        cells.forEach(el => { el.value = ""; el.classList.remove("brought", "right", "wrong"); });
+        rem.value = ""; rem.classList.remove("right", "wrong");
+        clearSel(); api.msg("");
+      });
+
+      const qCells = cells.filter(el => el.dataset.r === "-1");
+      this.check = () => {
+        const typed = qCells.map(el => el.value).join("").replace(/^0+(?=\d)/, "");
+        if (!typed) { api.msg("Write your quotient in the top row first."); return false; }
+        const qOk = typed === String(q);
+        const rv = rem.value.trim(), rOk = rv === "" ? r === 0 : same(parseAns(rv), r);
+        qCells.forEach(el => { el.classList.remove("right", "wrong"); if (el.value) { void el.offsetWidth; el.classList.add(qOk ? "right" : "wrong"); } });
+        rem.classList.remove("right", "wrong"); void rem.offsetWidth; rem.classList.add(rOk ? "right" : "wrong");
+        if (qOk && rOk) { api.msg(""); return true; }
+        api.msg(!qOk && !rOk ? "Not quite. Look over your steps and try again."
+          : !qOk ? "Your remainder is right, but check the quotient." : "Your quotient is right. Check the remainder.");
+        return false;
+      };
+      this.reveal = () => {
+        clearSel();
+        qCells.forEach((el, c) => { el.value = sol.quot[c]; el.classList.remove("wrong"); });
+        cells.filter(el => el.dataset.r !== "-1").forEach(el => {
+          const row = sol.rows[+el.dataset.r], c = +el.dataset.c;
+          el.value = row ? row.cells[c] : "";
+          el.classList.remove("right", "wrong");
+          el.classList.toggle("brought", !!row && row.brought === c);
+        });
+      };
+    }
   };
 }
 
@@ -515,8 +666,9 @@ function nextQuestion() {
   $("msg").textContent = ""; $("cheer").textContent = "";
   $("explain").classList.add("hidden"); $("explain").innerHTML = "";
   $("actRow").classList.remove("hidden"); $("nextRow").classList.add("hidden");
-  $("checkBtn").classList.toggle("hidden", !!cur.setup);
   if (cur.setup) cur.setup(box, { helped: () => { helped = true; }, msg: t => { $("msg").textContent = t; }, solved });
+  $("checkBtn").classList.toggle("hidden", !!cur.setup && !cur.check);
+  const firstDigit = box.querySelector("input.dg");
   const inputs = [...box.querySelectorAll("input.ans")];
   inputs.forEach((el, i) => {
     el.addEventListener("keydown", e => {
@@ -527,11 +679,14 @@ function nextQuestion() {
     });
     el.addEventListener("input", () => el.classList.remove("wrong", "right"));
   });
-  if (inputs[0] && matchMedia("(pointer: fine)").matches) inputs[0].focus();
+  const first = firstDigit || inputs[0];
+  if (first && matchMedia("(pointer: fine)").matches) first.focus();
 }
 
 function check() {
-  if (done || cur.setup) return;
+  if (done) return;
+  if (cur.check) { if (cur.check()) solved(); return; }
+  if (cur.setup) return;
   const inputs = [...$("qbox").querySelectorAll("input.ans")];
   let ok = true, blank = false;
   inputs.forEach(el => {
@@ -558,7 +713,7 @@ function reveal() {
 function solved(revealed) {
   done = true;
   results[idx] = helped ? "helped" : "clean";
-  $("qbox").querySelectorAll("input.ans").forEach(el => { el.readOnly = true; });
+  $("qbox").querySelectorAll("input").forEach(el => { el.readOnly = true; });
   $("cheer").textContent = revealed ? "Here's how it works:" : pick(CHEERS);
   $("explain").innerHTML = cur.explain;
   $("explain").classList.remove("hidden");
