@@ -147,6 +147,38 @@ input.ans::placeholder { color: #B8AD8A; }
 }
 .tip { font-size: .95rem; color: var(--chalk-dim); margin: 0 0 10px; line-height: 1.5; }
 
+/* place value chart */
+.pv { max-width: 520px; margin: 6px auto 10px; }
+.pvh, .pvrow { display: grid; grid-template-columns: repeat(7, 1fr); }
+.pvh span { font-size: .72rem; line-height: 1.15; color: var(--chalk-dim); padding: 0 1px 4px; align-self: end; }
+.pvh span.dec { color: var(--blue); }
+.pvwrap { position: relative; margin-bottom: 8px; }
+.pvlab { text-align: left; font-size: .85rem; color: var(--chalk-dim); margin: 2px 0; }
+.pvrow { position: relative; height: 3.2rem; }
+.pvrow .bgc { border-left: 1px solid var(--chalk-faint); background: rgba(255,255,255,.05); }
+.pvrow .bgc.dec { background: rgba(166,216,234,.12); }
+.pvrow .bgc:first-child { border-left: none; }
+.pvd {
+  position: absolute; top: 0; height: 100%; width: calc(100% / 7);
+  left: calc(var(--c) * 100% / 7);
+  display: flex; align-items: center; justify-content: center;
+  font-family: "Courier New", monospace; font-size: clamp(1.6rem, 7vw, 2.2rem); font-weight: 700;
+  transition: left .4s ease;
+}
+.pvd.zero { color: var(--chalk-dim); transition: none; }
+.pvd.hiY { color: var(--yellow); text-decoration: underline; text-underline-offset: 5px; }
+.pvd.hiB { color: var(--blue); text-decoration: underline; text-underline-offset: 5px; }
+.pvdot {
+  position: absolute; bottom: .55rem; left: calc(4 * 100% / 7); transform: translateX(-50%);
+  width: .6rem; height: .6rem; border-radius: 50%; background: var(--yellow);
+}
+.hiY { color: var(--yellow); }
+.hiB { color: var(--blue); }
+.pvnow { font-size: 1.5rem; font-weight: 700; margin: 4px 0 0; }
+.slide-row .btn { font-size: 1.3rem; padding: 12px 22px; }
+.slide-row .btn:disabled { opacity: .35; }
+@media (prefers-reduced-motion: reduce) { .pvd { transition: none; } }
+
 /* multiple choice */
 .choices { display: flex; flex-direction: column; gap: 10px; align-items: center; margin: 6px 0; }
 .choice {
@@ -182,6 +214,7 @@ input.ans::placeholder { color: #B8AD8A; }
       <button class="btn menu" data-mode="why">🔍 Where does the decimal go?<span>Use a product you know. How do you know?</span></button>
       <button class="btn menu" data-mode="div">➗ Long division<span>Find the quotient and the remainder</span></button>
       <button class="btn menu" data-mode="form">🔢 Standard form<span>Turn expanded and word form into a number</span></button>
+      <button class="btn menu" data-mode="place">🧭 Place value moves<span>Tenths, hundredths, tens: how they connect</span></button>
       <button class="btn menu" data-mode="mix">🎲 Mix it up<span>A little of everything</span></button>
     </div>
   </section>
@@ -588,6 +621,213 @@ function genDiv() {
   };
 }
 
+/* ---------- place value ---------- */
+// A number here is { sig: "35", low: -1 } -> digits 3,5 with the last digit in the tenths place (3.5).
+// Places run from 3 (thousands) down to -3 (thousandths); chart column = 3 - place.
+const PV_NAMES = ["thou-<br>sands", "hun-<br>dreds", "tens", "ones", "tenths", "hun-<br>dredths", "thou-<br>sandths"];
+const pvHigh = x => x.low + x.sig.length - 1;
+const pvFits = x => x.low >= -3 && pvHigh(x) <= 3;
+const pvVal = x => [+x.sig, -x.low];
+const pvShift = (x, k) => ({ sig: x.sig, low: x.low + k });
+const pvStr = x => fmt(pvVal(x));
+const TIMES = { 1: "10", 2: "100", 3: "1,000" };
+const PART = { 1: "1/10", 2: "1/100", 3: "1/1,000" };
+
+function pvRandom(len) {
+  // distinct nonzero digits so "which digit" questions are never ambiguous
+  const digs = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]).slice(0, len).join("");
+  for (let t = 0; t < 50; t++) { const x = { sig: digs, low: R(-3, 2) }; if (pvFits(x) && pvHigh(x) >= -1 && x.low <= 0) return x; }
+  return { sig: digs, low: -1 };
+}
+function pvPair(maxK = 2) {
+  for (let t = 0; t < 200; t++) {
+    const x = pvRandom(R(1, 2)), k = pick([1, 2, -1, -2, 1, -1, 3].filter(v => Math.abs(v) <= maxK));
+    if (pvFits(pvShift(x, k))) return [x, k];
+  }
+  return [{ sig: "35", low: -1 }, 1];
+}
+
+function pvChart(rows) {
+  const head = PV_NAMES.map((n, c) => `<span class="${c >= 4 ? "dec" : ""}">${n}</span>`).join("");
+  const body = rows.map((r, i) => `
+    ${r.label ? `<div class="pvlab">${r.label}</div>` : ""}
+    <div class="pvrow" data-row="${i}">${[0, 1, 2, 3, 4, 5, 6].map(c => `<span class="bgc${c >= 4 ? " dec" : ""}"></span>`).join("")}<span class="pvdot"></span></div>`).join("");
+  return `<div class="pv"><div class="pvh">${head}</div><div class="pvwrap">${body}</div></div>`;
+}
+// Place the digits of x into a chart row. Digit elements are reused so a shift slides them.
+function pvDraw(row, x, hi = {}) {
+  row.querySelectorAll(".pvd.zero").forEach(z => z.remove());
+  let digs = [...row.querySelectorAll(".pvd:not(.zero)")];
+  if (digs.length !== x.sig.length) {
+    digs.forEach(d => d.remove());
+    digs = x.sig.split("").map(ch => { const el = document.createElement("span"); el.className = "pvd"; el.textContent = ch; row.appendChild(el); return el; });
+  }
+  const high = pvHigh(x);
+  digs.forEach((el, i) => {
+    const place = high - i;
+    el.style.setProperty("--c", 3 - place);
+    el.classList.toggle("hiY", hi[place] === "Y");
+    el.classList.toggle("hiB", hi[place] === "B");
+  });
+  // placeholder zeros that standard form needs: 350 -> 0 in the ones, 0.035 -> 0 in the ones and tenths
+  const zeros = [];
+  if (x.low > 0) for (let pl = 0; pl < x.low; pl++) zeros.push(pl);
+  if (high < 0) for (let pl = high + 1; pl <= 0; pl++) zeros.push(pl);
+  zeros.forEach(pl => { const z = document.createElement("span"); z.className = "pvd zero"; z.textContent = "0"; z.style.setProperty("--c", 3 - pl); row.appendChild(z); });
+}
+function colorNum(x, hi) {
+  // the number as text, with highlighted digits wrapped in color spans
+  const str = pvStr(x); let place = pvHigh(x) < 0 ? 0 : pvHigh(x), out = "";
+  for (const ch of str) {
+    if (ch === ".") { out += "."; continue; }
+    if (ch === ",") { out += ","; continue; }
+    out += hi[place] ? `<span class="hi${hi[place]}">${ch}</span>` : ch;
+    place--;
+  }
+  return out;
+}
+
+function mcSetup(box, api) {
+  const btns = [...box.querySelectorAll(".choices .choice")];
+  btns.forEach(btn => btn.addEventListener("click", () => {
+    if (btn.disabled) return;
+    if (btn.dataset.ok) {
+      btn.classList.add("right");
+      btns.forEach(c => { c.disabled = true; if (c !== btn) c.classList.add("fade"); });
+      api.msg(""); api.solved();
+    } else {
+      api.helped();
+      btn.classList.remove("wrong"); void btn.offsetWidth; btn.classList.add("wrong");
+      api.msg("Not that one. Look at which place each digit is in.");
+    }
+  }));
+  return () => btns.forEach(c => { c.disabled = true; c.classList.add(c.dataset.ok ? "right" : "fade"); });
+}
+const choicesHtml = (list, cls = "num") => `<div class="choices">${shuffle(list).map(([t, ok]) => `<button class="choice ${cls}"${ok ? ' data-ok="1"' : ""}>${t}</button>`).join("")}</div>`;
+const RULE = "Every place is 10 times the place to its right. Move one place left: × 10. Move one place right: ÷ 10.";
+
+function genPlace() {
+  const t = pick(["slide", "slide", "times", "digit", "same", "fill"]);
+
+  if (t === "slide") {
+    const [x, k] = pvPair(3);
+    const goalTxt = k > 0
+      ? pick([`Make it <b>${TIMES[k]} times as big</b>.`, `Show <b>${pvStr(x)} × ${TIMES[k]}</b>.`])
+      : pick([`Make it <b>${PART[-k]} as big</b>.`, `Show <b>${pvStr(x)} ÷ ${TIMES[-k]}</b>.`]);
+    const target = pvShift(x, k);
+    return {
+      title: "🧭 Slide the digits",
+      html: `<p class="prompt">This is <b>${pvStr(x)}</b>. ${goalTxt}</p>
+        ${pvChart([{}])}
+        <p class="pvnow">Now: <span id="pvNow">${pvStr(x)}</span></p>
+        <div class="row slide-row">
+          <button class="btn" id="pvL" aria-label="Slide digits left">⬅</button>
+          <button class="btn" id="pvR" aria-label="Slide digits right">➡</button>
+        </div>`,
+      explain: `${pvStr(x)} ${k > 0 ? "× " + TIMES[k] : "÷ " + TIMES[-k]} = <b>${pvStr(target)}</b>.
+        Every digit moved ${places(Math.abs(k))} to the ${k > 0 ? "left" : "right"}.<br>${RULE}`,
+      setup(box, api) {
+        const row = box.querySelector(".pvrow");
+        let now = x;
+        const draw = () => {
+          pvDraw(row, now);
+          box.querySelector("#pvNow").textContent = pvStr(now);
+          box.querySelector("#pvL").disabled = done || !pvFits(pvShift(now, 1));
+          box.querySelector("#pvR").disabled = done || !pvFits(pvShift(now, -1));
+        };
+        box.querySelector("#pvL").addEventListener("click", () => { if (!done) { now = pvShift(now, 1); api.msg(""); draw(); } });
+        box.querySelector("#pvR").addEventListener("click", () => { if (!done) { now = pvShift(now, -1); api.msg(""); draw(); } });
+        draw();
+        this.check = () => {
+          if (now.low === target.low) return true;
+          api.msg(now.low === x.low ? "Slide the digits first." : `Not quite. ${pvStr(now)} is not ${k > 0 ? TIMES[k] + " times" : PART[-k]} of ${pvStr(x)} yet.`);
+          return false;
+        };
+        this.reveal = () => { now = target; draw(); };
+        this.onDone = draw;
+      }
+    };
+  }
+
+  if (t === "times") {
+    const [x, k] = pvPair(3), y = pvShift(x, k);
+    const opts = k > 0
+      ? [["10 times", k === 1], ["100 times", k === 2], ["1,000 times", k === 3], ["1/10 as big", false]]
+      : [["1/10", k === -1], ["1/100", k === -2], ["1/1,000", k === -3], ["10 times as big", false]];
+    return {
+      title: "🧭 How many times as big?",
+      html: `<p class="prompt">${k > 0 ? `<b>${pvStr(y)}</b> is how many times as big as <b>${pvStr(x)}</b>?` : `<b>${pvStr(y)}</b> is what part of <b>${pvStr(x)}</b>?`}</p>
+        ${pvChart([{ label: pvStr(x) }, { label: pvStr(y) }])}
+        ${choicesHtml(opts)}`,
+      explain: `The digits of ${pvStr(x)} moved ${places(Math.abs(k))} to the ${k > 0 ? "left" : "right"} to make ${pvStr(y)}, so
+        ${pvStr(y)} is <b>${k > 0 ? TIMES[k] + " times as big as" : PART[-k] + " of"}</b> ${pvStr(x)}.<br>${RULE}`,
+      setup(box, api) {
+        const rows = box.querySelectorAll(".pvrow");
+        pvDraw(rows[0], x); pvDraw(rows[1], y);
+        this.reveal = mcSetup(box, api);
+      }
+    };
+  }
+
+  if (t === "digit") {
+    const x = pvRandom(R(3, 4)); const high = pvHigh(x);
+    const i = R(0, x.sig.length - 1), g = +x.sig[i], place = high - i;
+    const worth = pl => fmt([g, -pl]);
+    const cand = [place + 1, place - 1, place + 2, place - 2].filter(pl => pl <= 3 && pl >= -3);
+    const opts = [[worth(place), true], ...shuffle(cand).slice(0, 3).map(pl => [worth(pl), false])];
+    const hi = { [place]: "Y" };
+    return {
+      title: "🧭 What is the digit worth?",
+      html: `<p class="prompt">In <b>${colorNum(x, hi)}</b>, what is the <span class="hiY"><b>${g}</b></span> worth?</p>
+        ${pvChart([{}])}${choicesHtml(opts)}`,
+      explain: `The ${g} is in the <b>${PV_NAMES[3 - place].replace("-<br>", "")}</b> place, so it is worth <b>${worth(place)}</b>.
+        One place to the left it would be worth ${worth(place + 1)}; one place to the right, ${worth(place - 1)}.`,
+      setup(box, api) { pvDraw(box.querySelector(".pvrow"), x, hi); this.reveal = mcSetup(box, api); }
+    };
+  }
+
+  if (t === "same") {
+    let x, p1, p2, g;
+    for (let tries = 0; tries < 100; tries++) {
+      g = R(1, 9); const gap = R(1, 2); p2 = R(-3, 1); p1 = p2 + gap;
+      const hi_ = Math.max(p1, 0), lo_ = Math.min(p2, -1);
+      if (hi_ > 2) continue;
+      let sig = "";
+      for (let pl = hi_; pl >= lo_; pl--) sig += (pl === p1 || pl === p2) ? g : pick([1, 2, 3, 4, 5, 6, 7, 8, 9].filter(v => v !== g));
+      x = { sig, low: lo_ }; if (pvFits(x)) break;
+    }
+    const k = p1 - p2, hi = { [p1]: "Y", [p2]: "B" };
+    const askBig = Math.random() < 0.6;
+    const opts = askBig
+      ? [["10 times", k === 1], ["100 times", k === 2], ["1,000 times", false], ["1/10 as much", false]]
+      : [["1/10", k === 1], ["1/100", k === 2], ["1/1,000", false], ["10 times as much", false]];
+    const nm = pl => PV_NAMES[3 - pl].replace("-<br>", "");
+    return {
+      title: "🧭 Same digit, different place",
+      html: `<p class="prompt">In <b>${colorNum(x, hi)}</b>, ${askBig
+          ? `the <span class="hiY"><b>yellow ${g}</b></span> is worth how many times the <span class="hiB"><b>blue ${g}</b></span>?`
+          : `the <span class="hiB"><b>blue ${g}</b></span> is worth what part of the <span class="hiY"><b>yellow ${g}</b></span>?`}</p>
+        ${pvChart([{}])}${choicesHtml(opts)}`,
+      explain: `The yellow ${g} is in the ${nm(p1)} place (${fmt([g, -p1])}). The blue ${g} is in the ${nm(p2)} place (${fmt([g, -p2])}).
+        They are ${places(k)} apart, so the yellow one is worth <b>${TIMES[k]} times</b> the blue one, and the blue one is <b>${PART[k]}</b> of the yellow one.`,
+      setup(box, api) { pvDraw(box.querySelector(".pvrow"), x, hi); this.reveal = mcSetup(box, api); }
+    };
+  }
+
+  // fill in the blank
+  const [x, k] = pvPair(3), y = pvShift(x, k), f = TIMES[Math.abs(k)], op = k > 0 ? "×" : "÷";
+  const form = R(0, 1);
+  const html = form === 0
+    ? `<div class="big" style="font-size:1.8rem">${pvStr(x)} ${op} ${f} = ${inp(pvVal(y), 8)}</div>`
+    : `<div class="big" style="font-size:1.8rem">${pvStr(x)} ${op} ${inp(W(10 ** Math.abs(k)), 6)} = ${pvStr(y)}</div>`;
+  return {
+    title: "🧭 Fill in the blank",
+    html: `<p class="prompt">Use the chart to help. ${pvStr(x)} is shown.</p>${pvChart([{}])}${html}`,
+    explain: `${pvStr(x)} ${op} ${f} = <b>${pvStr(y)}</b>. The digits move ${places(Math.abs(k))} to the ${k > 0 ? "left" : "right"}.<br>${RULE}`,
+    draw(box) { pvDraw(box.querySelector(".pvrow"), x); }
+  };
+}
+
 const ONES = ["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
 const TENS = ["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
 function w999(n) {
@@ -632,9 +872,9 @@ function genForm() {
   };
 }
 
-const GENS = { flash: genFlash, area: genArea, std: genStd, why: genWhy, div: genDiv, form: genForm };
-const ROUND = { flash: 10, area: 5, std: 5, why: 6, div: 5, form: 8, mix: 8 };
-const NAMES = { flash: "flash cards", area: "area models", std: "standard algorithm problems", why: "decimal puzzles", div: "long division problems", form: "standard form problems", mix: "mixed problems" };
+const GENS = { flash: genFlash, area: genArea, std: genStd, why: genWhy, div: genDiv, form: genForm, place: genPlace };
+const ROUND = { flash: 10, area: 5, std: 5, why: 6, div: 5, form: 8, place: 8, mix: 8 };
+const NAMES = { flash: "flash cards", area: "area models", std: "standard algorithm problems", why: "decimal puzzles", div: "long division problems", form: "standard form problems", place: "place value puzzles", mix: "mixed problems" };
 
 /* ---------- game loop ---------- */
 let mode = null, idx = 0, results = [], helped = false, done = false, cur = null;
@@ -667,6 +907,7 @@ function nextQuestion() {
   $("explain").classList.add("hidden"); $("explain").innerHTML = "";
   $("actRow").classList.remove("hidden"); $("nextRow").classList.add("hidden");
   if (cur.setup) cur.setup(box, { helped: () => { helped = true; }, msg: t => { $("msg").textContent = t; }, solved });
+  if (cur.draw) cur.draw(box);
   $("checkBtn").classList.toggle("hidden", !!cur.setup && !cur.check);
   const firstDigit = box.querySelector("input.dg");
   const inputs = [...box.querySelectorAll("input.ans")];
@@ -714,6 +955,7 @@ function solved(revealed) {
   done = true;
   results[idx] = helped ? "helped" : "clean";
   $("qbox").querySelectorAll("input").forEach(el => { el.readOnly = true; });
+  if (cur.onDone) cur.onDone();
   $("cheer").textContent = revealed ? "Here's how it works:" : pick(CHEERS);
   $("explain").innerHTML = cur.explain;
   $("explain").classList.remove("hidden");
