@@ -195,6 +195,20 @@ input.ans::placeholder { color: #B8AD8A; }
 .choice.fade { opacity: .45; }
 .choice:disabled { cursor: default; }
 
+.qhead { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.qhead h2 { margin: 0; }
+.btn.tiny { font-size: 1rem; padding: 5px 10px; border-width: 2px; line-height: 1; }
+.hintbox {
+  display: flex; gap: 10px; align-items: flex-start; text-align: left;
+  background: rgba(247,212,106,.12); border: 2px dashed var(--yellow); border-radius: 10px;
+  padding: 10px 12px; margin: 12px auto 0; max-width: 520px;
+}
+.hintbox .hintlab { font-size: .78rem; color: var(--yellow); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+.hintbox .hinttext { font-size: 1.05rem; line-height: 1.5; flex: 1; }
+.hintfocus { outline: 4px solid var(--yellow) !important; outline-offset: 3px; }
+.explain .row { margin-top: 8px; }
+.toggle { margin-top: 18px; }
+
 .final-list { list-style: none; padding: 0; margin: 10px auto 16px; font-size: 1.1rem; line-height: 1.8; }
 
 @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }
@@ -217,18 +231,23 @@ input.ans::placeholder { color: #B8AD8A; }
       <button class="btn menu" data-mode="place">🧭 Place value moves<span>Tenths, hundredths, tens: how they connect</span></button>
       <button class="btn menu" data-mode="mix">🎲 Mix it up<span>A little of everything</span></button>
     </div>
+    <div class="row toggle"><button class="btn small" id="autoBtn">🔊 Read questions aloud: on</button></div>
   </section>
 
   <section id="game" class="hidden">
     <div class="stars" id="stars"></div>
-    <h2 id="qTitle"></h2>
+    <div class="qhead"><h2 id="qTitle"></h2><button class="btn tiny" id="readBtn" aria-label="Read the question aloud" title="Read it to me">🔊</button></div>
     <div id="qbox"></div>
+    <div class="hintbox hidden" id="hintBox">
+      <div class="hinttext"><div class="hintlab" id="hintLab"></div><div id="hintText"></div></div>
+      <button class="btn tiny" id="hintReplay" aria-label="Say the hint again" title="Say it again">🔊</button>
+    </div>
     <p class="msg" id="msg"></p>
     <p class="cheer" id="cheer"></p>
     <div class="explain hidden" id="explain"></div>
     <div class="row" id="actRow">
       <button class="btn main" id="checkBtn">Check</button>
-      <button class="btn" id="showBtn">👀 Show me</button>
+      <button class="btn" id="hintBtn">💡 Hint</button>
     </div>
     <div class="row hidden" id="nextRow"><button class="btn main" id="nextBtn">Next</button></div>
     <div class="row"><button class="btn small back">Back to menu</button></div>
@@ -295,31 +314,94 @@ function inp(ans, width, extra = "") {
     data-ans="${val(ans)}" data-show="${fmt(ans)}" style="width:${w + 1.5}ch" ${extra}>`;
 }
 
+/* ---------- speech ---------- */
+const strip = h => String(h).replace(/<br\s*\/?>/gi, ". ").replace(/<li>/gi, " ").replace(/<\/li>/gi, ". ").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+function speakable(t) {
+  return strip(t)
+    .replace(/×/g, " times ").replace(/÷/g, " divided by ").replace(/−/g, " minus ").replace(/≈/g, " is about ")
+    .replace(/\bR (\d+)/g, " remainder $1")
+    .replace(/1\/1,000/g, "one thousandth").replace(/1\/100/g, "one hundredth").replace(/1\/10/g, "one tenth")
+    .replace(/(\d),(\d{3})/g, "$1$2")
+    .replace(/\s*=\s*/g, " equals ")
+    .replace(/⬅/g, "the left arrow").replace(/➡/g, "the right arrow")
+    .replace(/\.\s*\./g, ".").replace(/\s+/g, " ").trim();
+}
+function speak(t) {
+  try {
+    if (!("speechSynthesis" in window)) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(speakable(t));
+    u.rate = 0.9; u.lang = "en-US";
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
+const hush = () => { try { speechSynthesis.cancel(); } catch (e) {} };
+
+// the front digits of a place-value part: 400 -> "4", 0.7 -> "7", 30 -> "3"
+const front = p => String(norm(p)[0]).replace(/0+$/, "") || "0";
+// hints for one box of the area model: a and b are place-value parts, b is always whole
+function partHints(a, b) {
+  const fa = front(a), fb = front(b), fp = +fa * +fb, prod = mul(a, b);
+  let mid;
+  if (a[1] === 0) {
+    const zeros = (String(a[0]).length - fa.length) + (String(b[0]).length - fb.length);
+    mid = `${fa} × ${fb} = ${fp}. Now put ${zeros} zero${zeros === 1 ? "" : "s"} back on the end.`;
+  } else {
+    mid = `${fa} × ${fmt(b)} = ${fmt(mul(W(+fa), b))}. ${fmt(a)} is ${fa} ÷ ${fmt(W(10 ** a[1]))}, so divide that by ${fmt(W(10 ** a[1]))} too.`;
+  }
+  return [`This box is ${fmt(a)} × ${fmt(b)}. Multiply the front digits first: ${fa} × ${fb}.`, mid, `${fmt(a)} × ${fmt(b)} = ${fmt(prod)}.`];
+}
+// hints for adding a list of parts
+function addHints(list) {
+  const total = sum(list);
+  if (list.length < 2) return [`Add the boxes together.`, `There is just one box.`, `The total is ${fmt(total)}.`];
+  const first = sum(list.slice(0, 2)), rest = list.slice(2);
+  return [
+    `Add all the boxes together. Start with the two biggest.`,
+    `${fmt(list[0])} + ${fmt(list[1])} = ${fmt(first)}.${rest.length ? ` Now add ${rest.map(fmt).join(" and ")}.` : ""}`,
+    `${list.map(fmt).join(" + ")} = ${fmt(total)}.`
+  ];
+}
+const mcSteps = (box, hints) => () => [{ hints, done: () => !!box.querySelector(".choice.right") }];
+
 /* ---------- game generators ---------- */
 // Each returns { title, html, explain, check?(box), setup?(box, api) }.
 
 function genFlash() {
   const t = R(0, 8);
-  let q, a, hint = "";
-  if (t === 0) { const x = R(3, 12), y = R(3, 12); q = `${x} × ${y}`; a = W(x * y); }
-  else if (t === 1) { const x = R(3, 12), y = R(3, 9); q = `${x * y} ÷ ${y}`; a = W(x); }
+  let q, a, hints;
+  if (t === 0) {
+    const x = R(3, 12), y = R(3, 12); q = `${x} × ${y}`; a = W(x * y);
+    hints = [`${x} × ${y} means ${x} groups of ${y}. Count by ${y}s, ${x} times.`, `${x - 1} × ${y} is ${(x - 1) * y}. Add one more ${y}.`, `${x} × ${y} = ${x * y}.`];
+  }
+  else if (t === 1) {
+    const x = R(3, 12), y = R(3, 9); q = `${x * y} ÷ ${y}`; a = W(x);
+    hints = [`What number times ${y} makes ${x * y}?`, `Count by ${y}s until you reach ${x * y}. How many counts did it take?`, `${y} × ${x} = ${x * y}, so ${x * y} ÷ ${y} = ${x}.`];
+  }
   else if (t === 2) {
     const x = R(2, 9) * pick([10, 100]), y = R(2, 9) * 10;
     q = `${fmt(W(x))} × ${fmt(W(y))}`; a = W(x * y);
-    hint = `Multiply ${String(x).replace(/0+$/, "")} × ${String(y).replace(/0+$/, "")}, then add the zeros back.`;
+    const fx = front(W(x)), fy = front(W(y)), zeros = String(x).length - 1 + String(y).length - 1;
+    hints = [`Multiply the front digits first, then put the zeros back.`, `${fx} × ${fy} = ${+fx * +fy}. Now add ${zeros} zeros on the end.`, `${q} = ${fmt(a)}.`];
   }
   else if (t === 3) {
     const n = digitsNum(R(2, 3)), d = R(1, 2), p = R(1, 3);
     q = `${fmt([n, d])} × ${fmt(W(10 ** p))}`; a = norm([n, d - p]);
-    hint = `Times ${fmt(W(10 ** p))} moves every digit ${places(p)} to the left.`;
+    hints = [`Times ${fmt(W(10 ** p))} moves every digit ${places(p)} to the left. The number gets bigger.`, `Move the decimal point in ${fmt([n, d])} ${places(p)} to the right. Add zeros if you run out of digits.`, `${q} = ${fmt(a)}.`];
   }
   else if (t === 4) {
     const n = digitsNum(R(2, 3)), p = R(1, 2);
     q = `${fmt(W(n))} ÷ ${fmt(W(10 ** p))}`; a = [n, p];
-    hint = `Divided by ${fmt(W(10 ** p))} moves every digit ${places(p)} to the right.`;
+    hints = [`Divided by ${fmt(W(10 ** p))} moves every digit ${places(p)} to the right. The number gets smaller.`, `Move the decimal point in ${n} ${places(p)} to the left.`, `${q} = ${fmt(a)}.`];
   }
-  else if (t === 5) { const x = R(2, 9), y = R(2, 9); q = `0.${x} × ${y}`; a = [x * y, 1]; hint = `${x} × ${y} = ${x * y}, and there is 1 decimal place.`; }
-  else if (t === 6) { const x = R(2, 9), y = R(2, 9); q = `0.${x} × 0.${y}`; a = [x * y, 2]; hint = `${x} × ${y} = ${x * y}, and there are 2 decimal places.`; }
+  else if (t === 5) {
+    const x = R(2, 9), y = R(2, 9); q = `0.${x} × ${y}`; a = [x * y, 1];
+    hints = [`First multiply like whole numbers: ${x} × ${y}.`, `${x} × ${y} = ${x * y}. 0.${x} has 1 decimal place, so the answer needs 1 decimal place.`, `${q} = ${fmt(a)}.`];
+  }
+  else if (t === 6) {
+    const x = R(2, 9), y = R(2, 9); q = `0.${x} × 0.${y}`; a = [x * y, 2];
+    hints = [`First multiply like whole numbers: ${x} × ${y}.`, `${x} × ${y} = ${x * y}. Each factor has 1 decimal place, so the answer needs 2.`, `${q} = ${fmt(a)}.`];
+  }
   else if (t === 7) {
     const x = digitsNum(3), dx = R(0, 2), y = digitsNum(2), dy = dx ? R(0, 1) : 1;
     const k = dx + dy;
@@ -328,6 +410,7 @@ function genFlash() {
       html: `<p class="prompt">Count the decimal places in the factors.</p>
         <div class="big">${fmt([x, dx])} × ${fmt([y, dy])}</div>
         <p class="prompt">How many decimal places go in the product? ${inp(W(k), 2)}</p>`,
+      hints: [[`Count the digits after the decimal point in each number.`, `${fmt([x, dx])} has ${places(dx)} and ${fmt([y, dy])} has ${places(dy)}. Add them.`, `${dx} + ${dy} = ${k}.`]],
       explain: `${fmt([x, dx])} has ${places(dx)} after the decimal and ${fmt([y, dy])} has ${places(dy)}. ${dx} + ${dy} = ${k}.`
     };
   }
@@ -338,13 +421,15 @@ function genFlash() {
       title: "⚡ Estimate it",
       html: `<p class="prompt">Round ${x} to the nearest hundred and ${y} to the nearest ten. Then multiply.</p>
         <div class="big">${x} × ${y} ≈ ${inp(W(rx * ry))}</div>`,
+      hints: [[`Round first. ${x} is closest to which hundred? ${y} is closest to which ten?`, `${x} rounds to ${fmt(W(rx))} and ${y} rounds to ${ry}. Multiply those.`, `${fmt(W(rx))} × ${ry} = ${fmt(W(rx * ry))}.`]],
       explain: `${x} rounds to ${fmt(W(rx))} and ${y} rounds to ${ry}. ${fmt(W(rx))} × ${ry} = ${fmt(W(rx * ry))}.`
     };
   }
   return {
     title: "⚡ Flash card",
     html: `<div class="big">${q} = ${inp(a)}</div>`,
-    explain: `${q} = ${fmt(a)}.${hint ? " " + hint : ""}`
+    hints: [hints],
+    explain: `${q} = ${fmt(a)}. ${hints[1]}`
   };
 }
 
@@ -353,12 +438,12 @@ function genArea() {
   const A = dec ? [digitsNum(2), 1] : W(digitsNum(Math.random() < 0.65 ? 3 : 2));
   const B = W(digitsNum(2));
   const pa = parts(A), pb = parts(B);
-  const prods = [];
+  const prods = [], hints = [];
   let cells = `<div></div>` + pa.map(p => `<div class="h">${fmt(p)}</div>`).join("");
   pb.forEach(b => {
     cells += `<div class="h side">${fmt(b)}</div>`;
     pa.forEach(a => {
-      const p = mul(a, b); prods.push(p);
+      const p = mul(a, b); prods.push(p); hints.push(partHints(a, b));
       cells += `<div class="cell"><small>${fmt(a)} × ${fmt(b)}</small>${inp(p, 4)}</div>`;
     });
   });
@@ -369,6 +454,8 @@ function genArea() {
       <div class="big" style="font-size:1.8rem">${fmt(A)} × ${fmt(B)}</div>
       <div class="area" style="grid-template-columns: auto repeat(${pa.length}, minmax(0, 1fr))">${cells}</div>
       <p class="prompt">Add the parts: ${fmt(A)} × ${fmt(B)} = ${inp(total)}</p>`,
+    hints: [...hints, addHints(prods)],
+    say: `${fmt(A)} times ${fmt(B)}. Break ${fmt(A)} and ${fmt(B)} into place-value parts. Fill in each box, then add them all.`,
     explain: `${fmt(A)} = ${pa.map(fmt).join(" + ")} and ${fmt(B)} = ${pb.map(fmt).join(" + ")}.<br>
       Parts: ${prods.map(fmt).join(" + ")} = <b>${fmt(sum(prods))}</b>`
   };
@@ -383,6 +470,19 @@ function genStd() {
   const ones = b % 10, tens = Math.floor(b / 10) * 10;
   const r1 = a * ones, r2 = a * tens, tot = a * b;
   const w = fmt(W(tot)).length + 3;
+  const td = Math.floor(b / 10);
+  const hints = [
+    [`Multiply ${a} by the ones digit, ${ones}. Start from the right.`,
+     `Break it up: ${parts(W(a)).map(p => `${fmt(p)} × ${ones} = ${fmt(mul(p, W(ones)))}`).join(", ")}. Add those.`,
+     `${a} × ${ones} = ${fmt(W(r1))}.`],
+    [`Now multiply ${a} by the tens digit. ${td} tens is ${tens}. Write a 0 on the end first.`,
+     `${a} × ${td} = ${fmt(W(a * td))}. Then put the 0 on the end, because it is really ${td} tens.`,
+     `${a} × ${tens} = ${fmt(W(r2))}.`],
+    [`Add the two rows.`, `${fmt(W(r1))} + ${fmt(W(r2))}. Line up the ones and add from the right.`, `${fmt(W(r1))} + ${fmt(W(r2))} = ${fmt(W(tot))}.`]
+  ];
+  if (dec) hints.push([`Count the decimal places in ${fmt(A)} and in ${fmt(B)}, then add them.`,
+    `${fmt(A)} has ${places(da)} and ${fmt(B)} has ${places(db)}, so ${places(k)} in all. Start at the right end of ${fmt(W(tot))} and count ${places(k)} to the left.`,
+    `${fmt(A)} × ${fmt(B)} = ${fmt([tot, k])}.`]);
   const decLine = dec
     ? `<p class="prompt">Now place the decimal. Count the decimal places in both factors.<br>
         ${fmt(A)} × ${fmt(B)} = ${inp([tot, k])}</p>` : "";
@@ -401,6 +501,8 @@ function genStd() {
         <span></span>${inp(W(tot), w)}
       </div>
       ${decLine}`,
+    hints,
+    say: `${fmt(A)} times ${fmt(B)}. ${dec ? "Multiply like whole numbers first, then place the decimal." : "Multiply the ones, then the tens, then add."}`,
     explain: `${a} × ${ones} = ${fmt(W(r1))}<br>${a} × ${tens} = ${fmt(W(r2))}<br>${fmt(W(r1))} + ${fmt(W(r2))} = <b>${fmt(W(tot))}</b>` +
       (dec ? `<br>${fmt(A)} has ${places(da)} and ${fmt(B)} has ${places(db)}, so ${places(k)} in all: <b>${fmt(A)} × ${fmt(B)} = ${fmt([tot, k])}</b>` : "")
   };
@@ -437,6 +539,7 @@ function genWhy() {
         <p class="prompt" style="margin-top:18px"><b>How do you know?</b></p>
         <div class="choices" id="c2">${reasons.map((r, i) => `<button class="choice" data-i="${i}">${r}</button>`).join("")}</div>
       </div>`,
+    say: `You know that ${fmt(W(a))} times ${fmt(W(b))} equals ${fmt(W(P))}. What is ${fmt(A)} times ${fmt(B)}?`,
     explain: `${right}<br>Estimate to check: ${fmt(A)} × ${fmt(B)} is about ${fmt([lead, da])} × ${fmt(B)} = ${estTxt}, and ${answer} is close to that.`,
     setup(box, api) {
       const c1 = box.querySelector("#c1"), c2 = box.querySelector("#c2");
@@ -457,11 +560,16 @@ function genWhy() {
       };
       stage(c1, btn => btn.dataset.v === answer, () => { api.msg(""); box.querySelector("#part2").classList.remove("hidden"); });
       stage(c2, btn => good(reasons[+btn.dataset.i]), () => { api.msg(""); api.solved(); });
-      this.reveal = () => {
-        [[c1, btn => btn.dataset.v === answer], [c2, btn => good(reasons[+btn.dataset.i])]].forEach(([wrap, ok]) =>
-          wrap.querySelectorAll(".choice").forEach(c => { c.disabled = true; c.classList.add(ok(c) ? "right" : "fade"); }));
-        box.querySelector("#part2").classList.remove("hidden");
-      };
+      this.steps = () => [
+        { hints: [`${fmt(A)} × ${fmt(B)} uses the same digits as ${fmt(W(a))} × ${fmt(W(b))}, so the answer has the same digits as ${fmt(W(P))}. Is it bigger or smaller than ${fmt(W(P))}?`,
+                  `${fmt(A)} has ${places(da)} and ${fmt(B)} has ${places(db)}: ${places(k)} in all. Start with ${fmt(W(P))} and move the decimal point ${places(k)} to the left.`,
+                  `The answer is ${answer}.`],
+          done: () => !!c1.querySelector(".choice.right") },
+        { hints: [`Think about how ${fmt(A)} and ${fmt(B)} were made from ${fmt(W(a))} and ${fmt(W(b))}. What was each one divided by?`,
+                  `${how(A)}, and ${how(B)}. So the product is ${fmt(W(P))} divided by what?`,
+                  `Pick the one that says: ${right}`],
+          done: () => !!c2.querySelector(".choice.right") }
+      ];
     }
   };
 }
@@ -482,9 +590,10 @@ function divSteps(N, d) {
   return steps;
 }
 
-// The standard written layout: quotient digits plus alternating product / difference rows.
+// The standard written layout: quotient digits plus alternating product / difference rows,
+// and the list of small steps (quotient digit, multiply, subtract, bring down) that build it.
 function divLayout(N, d) {
-  const s = String(N), n = s.length, quot = Array(n).fill(""), rows = [];
+  const s = String(N), n = s.length, quot = Array(n).fill(""), rows = [], steps = [];
   const blank = kind => ({ kind, cells: Array(n).fill(""), brought: -1 });
   const place = (row, str, end) => { for (let j = 0; j < str.length; j++) row.cells[end - str.length + 1 + j] = str[j]; };
   let cur = 0, started = false, last = null;
@@ -497,9 +606,14 @@ function divLayout(N, d) {
     quot[i] = String(q);
     const prod = blank("prod"), diff = blank("diff");
     place(prod, String(m), i); place(diff, String(rem), i);
+    const r = rows.length;
+    steps.push({ kind: "q", row: -1, col: i, cur, q, m, rem });
+    steps.push({ kind: "m", row: r, col: i, cur, q, m, rem });
+    steps.push({ kind: "s", row: r + 1, col: i, cur, q, m, rem });
+    if (i < n - 1) steps.push({ kind: "b", row: r + 1, col: i + 1, cur, q, m, rem, next: s[i + 1], made: rem * 10 + +s[i + 1] });
     rows.push(prod, diff); last = diff; cur = rem;
   }
-  return { quot, rows };
+  return { quot, rows, steps };
 }
 
 function genDiv() {
@@ -525,6 +639,7 @@ function genDiv() {
       <div class="ld" style="grid-template-columns: auto repeat(${n}, 2.3rem)">${grid}</div>
       <p class="prompt">Remainder: R ${inp(W(r), 3)}</p>
       <div class="row" style="margin-top:4px"><button class="btn small" id="clearWork">Erase my work</button></div>`,
+    say: `${fmt(W(N))} divided by ${d}. Write the quotient in the top row, and show your work underneath.`,
     explain: `<ol>${divSteps(N, d).map(s => `<li>${s}</li>`).join("")}</ol>
       Answer: <b>${fmt(W(q))} R ${r}</b>. Check: ${fmt(W(q))} × ${d}${r ? ` + ${r}` : ""} = ${fmt(W(N))}`,
     setup(box, api) {
@@ -607,16 +722,23 @@ function genDiv() {
           : !qOk ? "Your remainder is right, but check the quotient." : "Your quotient is right. Check the remainder.");
         return false;
       };
-      this.reveal = () => {
-        clearSel();
-        qCells.forEach((el, c) => { el.value = sol.quot[c]; el.classList.remove("wrong"); });
-        cells.filter(el => el.dataset.r !== "-1").forEach(el => {
-          const row = sol.rows[+el.dataset.r], c = +el.dataset.c;
-          el.value = row ? row.cells[c] : "";
-          el.classList.remove("right", "wrong");
-          el.classList.toggle("brought", !!row && row.brought === c);
-        });
-      };
+      // one small step at a time, the way it is done on paper
+      const rowDone = (r, skipCol) => sol.rows[r].cells.every((ch, c) => c === skipCol || !ch || at(r, c).value === ch);
+      this.steps = () => [
+        ...sol.steps.map(st => {
+          const under = `under the ${st.cur}`;
+          if (st.kind === "q") return { el: at(-1, st.col), done: () => at(-1, st.col).value === String(st.q),
+            hints: [`How many times does ${d} go into ${st.cur}?`, `${d} goes into ${st.cur} ${ONES[st.q]} time${st.q === 1 ? "" : "s"}. Write ${st.q} on top, above the ${s[st.col]}.`] };
+          if (st.kind === "m") return { el: at(st.row, st.col - String(st.m).length + 1), done: () => rowDone(st.row),
+            hints: [`Now multiply: ${st.q} × ${d}. Write the answer ${under}.`, `${st.q} × ${d} = ${st.m}. Write ${st.m} ${under}, lined up on the right.`] };
+          if (st.kind === "s") return { el: at(st.row, st.col), done: () => rowDone(st.row, sol.rows[st.row].brought),
+            hints: [`Subtract: ${st.cur} − ${st.m}. Write what is left below the line.`, `${st.cur} − ${st.m} = ${st.rem}. Write ${st.rem} under the ${st.m}.`] };
+          return { el: at(st.row, st.col), done: () => at(st.row, st.col).value === st.next,
+            hints: [`Bring down the next digit, the ${st.next}. Drag it from ${fmt(W(N))} to the box next to the ${st.rem}.`, `Bring down the ${st.next} to make ${st.made}.`] };
+        }),
+        { el: rem, done: () => { const v = rem.value.trim(); return v !== "" && same(parseAns(v), r); },
+          hints: [`The number left at the bottom is the remainder. ${r === 0 ? "If nothing is left, type 0." : "Type it in the remainder box."}`, `The remainder is ${r}.`] }
+      ];
     }
   };
 }
@@ -701,8 +823,8 @@ function mcSetup(box, api) {
       api.msg("Not that one. Look at which place each digit is in.");
     }
   }));
-  return () => btns.forEach(c => { c.disabled = true; c.classList.add(c.dataset.ok ? "right" : "fade"); });
 }
+const okLabel = box => { const b = box.querySelector(".choice[data-ok]"); return b ? b.textContent : ""; };
 const choicesHtml = (list, cls = "num") => `<div class="choices">${shuffle(list).map(([t, ok]) => `<button class="choice ${cls}"${ok ? ' data-ok="1"' : ""}>${t}</button>`).join("")}</div>`;
 const RULE = "Every place is 10 times the place to its right. Move one place left: × 10. Move one place right: ÷ 10.";
 
@@ -743,8 +865,12 @@ function genPlace() {
           api.msg(now.low === x.low ? "Slide the digits first." : `Not quite. ${pvStr(now)} is not ${k > 0 ? TIMES[k] + " times" : PART[-k]} of ${pvStr(x)} yet.`);
           return false;
         };
-        this.reveal = () => { now = target; draw(); };
         this.onDone = draw;
+        const dir = k > 0 ? "left" : "right", arrow = k > 0 ? "⬅" : "➡";
+        this.steps = () => [{ done: () => now.low === target.low, hints: [
+          k > 0 ? `${TIMES[k]} times as big means every digit moves ${places(k)} to the left.` : `${PART[-k]} as big means every digit moves ${places(-k)} to the right.`,
+          `Press ${arrow} ${Math.abs(k)} time${Math.abs(k) === 1 ? "" : "s"} and watch the Now number change.`,
+          `You want ${pvStr(target)}.`] }];
       }
     };
   }
@@ -764,7 +890,10 @@ function genPlace() {
       setup(box, api) {
         const rows = box.querySelectorAll(".pvrow");
         pvDraw(rows[0], x); pvDraw(rows[1], y);
-        this.reveal = mcSetup(box, api);
+        mcSetup(box, api);
+        this.steps = mcSteps(box, [`Compare the two rows. Each digit moved how many columns?`,
+          `The digits moved ${places(Math.abs(k))} to the ${k > 0 ? "left" : "right"}. Every column is 10 times the one next to it.`,
+          `The answer is ${okLabel(box)}.`]);
       }
     };
   }
@@ -782,7 +911,12 @@ function genPlace() {
         ${pvChart([{}])}${choicesHtml(opts)}`,
       explain: `The ${g} is in the <b>${PV_NAMES[3 - place].replace("-<br>", "")}</b> place, so it is worth <b>${worth(place)}</b>.
         One place to the left it would be worth ${worth(place + 1)}; one place to the right, ${worth(place - 1)}.`,
-      setup(box, api) { pvDraw(box.querySelector(".pvrow"), x, hi); this.reveal = mcSetup(box, api); }
+      setup(box, api) {
+        pvDraw(box.querySelector(".pvrow"), x, hi); mcSetup(box, api);
+        this.steps = mcSteps(box, [`Find the column the yellow ${g} is in.`,
+          `It is in the ${PV_NAMES[3 - place].replace("-<br>", "")} column. One in that column is worth ${fmt([1, -place])}, and there are ${g} of them.`,
+          `The ${g} is worth ${worth(place)}.`]);
+      }
     };
   }
 
@@ -810,7 +944,12 @@ function genPlace() {
         ${pvChart([{}])}${choicesHtml(opts)}`,
       explain: `The yellow ${g} is in the ${nm(p1)} place (${fmt([g, -p1])}). The blue ${g} is in the ${nm(p2)} place (${fmt([g, -p2])}).
         They are ${places(k)} apart, so the yellow one is worth <b>${TIMES[k]} times</b> the blue one, and the blue one is <b>${PART[k]}</b> of the yellow one.`,
-      setup(box, api) { pvDraw(box.querySelector(".pvrow"), x, hi); this.reveal = mcSetup(box, api); }
+      setup(box, api) {
+        pvDraw(box.querySelector(".pvrow"), x, hi); mcSetup(box, api);
+        this.steps = mcSteps(box, [`Find the column of each ${g}. Count how many columns apart they are.`,
+          `They are ${k} column${k === 1 ? "" : "s"} apart. Each column to the left is 10 times bigger, and each column to the right is 1/10.`,
+          `The answer is ${okLabel(box)}.`]);
+      }
     };
   }
 
@@ -823,6 +962,13 @@ function genPlace() {
   return {
     title: "🧭 Fill in the blank",
     html: `<p class="prompt">Use the chart to help. ${pvStr(x)} is shown.</p>${pvChart([{}])}${html}`,
+    hints: [form === 0
+      ? [`${op} ${f} means every digit moves ${places(Math.abs(k))} to the ${k > 0 ? "left" : "right"}.`,
+         `Start at ${pvStr(x)} and slide every digit ${places(Math.abs(k))} ${k > 0 ? "left" : "right"} in your head.${k > 0 ? " Add zeros if you run out of digits." : ""}`,
+         `${pvStr(x)} ${op} ${f} = ${pvStr(y)}.`]
+      : [`Compare ${pvStr(x)} and ${pvStr(y)}. How many places did the digits move?`,
+         `They moved ${places(Math.abs(k))}. Each place is a 10, so multiply 10 by itself that many times.`,
+         `${pvStr(x)} ${op} ${f} = ${pvStr(y)}. The blank is ${f}.`]],
     explain: `${pvStr(x)} ${op} ${f} = <b>${pvStr(y)}</b>. The digits move ${places(Math.abs(k))} to the ${k > 0 ? "left" : "right"}.<br>${RULE}`,
     draw(box) { pvDraw(box.querySelector(".pvrow"), x); }
   };
@@ -868,6 +1014,10 @@ function genForm() {
     html: `<p class="prompt">${prompt}:</p>
       <div class="big" style="font-size:${t === 2 ? "1.35rem" : "1.5rem"};line-height:1.5">${shown}</div>
       <p class="prompt">Write it in standard form: ${inp(num, 12)}</p>`,
+    hints: [[`Start with the biggest place: ${terms[0].dig} in the ${PLACE[terms[0].place]} place. Then fill each place going right. Put a 0 in any place that is missing.`,
+      `Digit by digit: ${terms.map(x => `${x.dig} in the ${PLACE[x.place]} place`).join(", ")}.${d ? " The decimal point goes right after the ones place." : ""}`,
+      `In standard form it is ${fmt(num)}.`]],
+    say: `${prompt}: ${t === 1 ? shown.replace(/[()]/g, "") : shown}. Write it in standard form.`,
     explain: `Standard form: <b>${fmt(num)}</b><br>Word form: ${words(num)}`
   };
 }
@@ -878,8 +1028,12 @@ const NAMES = { flash: "flash cards", area: "area models", std: "standard algori
 
 /* ---------- game loop ---------- */
 let mode = null, idx = 0, results = [], helped = false, done = false, cur = null;
+let hintStep = -1, hintLevel = 0;
+let autoRead = true;
+try { autoRead = localStorage.getItem("mm_auto") !== "0"; } catch (e) {}
+function drawAuto() { $("autoBtn").textContent = `🔊 Read questions aloud: ${autoRead ? "on" : "off"}`; }
 
-function show(id) { ["menu", "game", "finish"].forEach(s => $(s).classList.toggle("hidden", s !== id)); }
+function show(id) { hush(); ["menu", "game", "finish"].forEach(s => $(s).classList.toggle("hidden", s !== id)); }
 
 function drawStars() {
   const s = $("stars"); s.innerHTML = "";
@@ -896,7 +1050,7 @@ function drawStars() {
 function startGame(m) { mode = m; idx = 0; results = []; nextQuestion(); }
 
 function nextQuestion() {
-  helped = false; done = false;
+  helped = false; done = false; hintStep = -1; hintLevel = 0;
   const gen = mode === "mix" ? pick(Object.values(GENS)) : GENS[mode];
   cur = gen();
   show("game"); drawStars();
@@ -905,6 +1059,7 @@ function nextQuestion() {
   box.innerHTML = cur.html;
   $("msg").textContent = ""; $("cheer").textContent = "";
   $("explain").classList.add("hidden"); $("explain").innerHTML = "";
+  $("hintBox").classList.add("hidden"); $("hintBtn").textContent = "💡 Hint";
   $("actRow").classList.remove("hidden"); $("nextRow").classList.add("hidden");
   if (cur.setup) cur.setup(box, { helped: () => { helped = true; }, msg: t => { $("msg").textContent = t; }, solved });
   if (cur.draw) cur.draw(box);
@@ -920,8 +1075,58 @@ function nextQuestion() {
     });
     el.addEventListener("input", () => el.classList.remove("wrong", "right"));
   });
+  box.querySelectorAll("input").forEach(el => el.addEventListener("input", () => el.classList.remove("hintfocus")));
   const first = firstDigit || inputs[0];
   if (first && matchMedia("(pointer: fine)").matches) first.focus();
+  if (autoRead) speak(questionText());
+}
+
+// what the 🔊 button reads: the prompt, the big numbers, and any choices
+function questionText() {
+  if (cur.say) return cur.say;
+  const clone = $("qbox").cloneNode(true);
+  clone.querySelectorAll(".hidden, .note, .tip, .ld, .area, .alg, .pv").forEach(el => el.remove());
+  clone.querySelectorAll("input").forEach(el => el.replaceWith(" blank "));
+  const bits = [...clone.querySelectorAll(".prompt, .big, .pvnow")].map(el => el.textContent);
+  const ch = [...clone.querySelectorAll(".choice")].map(el => el.textContent);
+  if (ch.length) bits.push("Your choices are: " + ch.join(", or "));
+  return bits.join(". ");
+}
+
+// the list of small steps for the current question, in the order she should do them
+function stepsFor() {
+  if (cur.steps) return cur.steps();
+  const inputs = [...$("qbox").querySelectorAll("input.ans")];
+  return inputs.map((el, i) => ({ el, hints: (cur.hints || [])[i] || ["Fill in this box."], done: () => same(parseAns(el.value), +el.dataset.ans) }));
+}
+
+// A hint for the first step she has not finished. Each press on the same step gets more specific.
+function hint() {
+  if (done) return;
+  const steps = stepsFor();
+  const i = steps.findIndex(st => !st.done());
+  document.querySelectorAll(".hintfocus").forEach(el => el.classList.remove("hintfocus"));
+  if (i < 0) { showHint("Every step looks done. Press Check!", "All steps"); return; }
+  if (i !== hintStep) { hintStep = i; hintLevel = 0; }
+  const st = steps[i], lvl = Math.min(hintLevel, st.hints.length - 1);
+  if (lvl >= 1) helped = true;
+  let text = st.hints[lvl];
+  if (st.el && st.el.value && st.el.value.trim()) text = "Look at this box again. " + text;
+  hintLevel++;
+  showHint(text, `Step ${i + 1} of ${steps.length}`);
+  $("hintBtn").textContent = "💡 Another hint";
+  if (st.el) {
+    st.el.classList.add("hintfocus");
+    st.el.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (matchMedia("(pointer: fine)").matches) st.el.focus();
+  }
+}
+
+function showHint(text, label) {
+  $("hintLab").textContent = label;
+  $("hintText").innerHTML = text;
+  $("hintBox").classList.remove("hidden");
+  speak(text);
 }
 
 function check() {
@@ -942,22 +1147,17 @@ function check() {
     ? "Not quite. Fix the pink boxes." : "Fill in every box first.";
 }
 
-function reveal() {
-  if (done) return;
-  helped = true;
-  if (cur.reveal) cur.reveal();
-  $("qbox").querySelectorAll("input.ans").forEach(el => { el.value = el.dataset.show; el.classList.remove("wrong"); el.classList.add("right"); });
-  $("msg").textContent = "";
-  solved(true);
-}
-
-function solved(revealed) {
+function solved() {
   done = true;
   results[idx] = helped ? "helped" : "clean";
-  $("qbox").querySelectorAll("input").forEach(el => { el.readOnly = true; });
+  $("qbox").querySelectorAll("input").forEach(el => { el.readOnly = true; el.classList.remove("hintfocus"); });
   if (cur.onDone) cur.onDone();
-  $("cheer").textContent = revealed ? "Here's how it works:" : pick(CHEERS);
-  $("explain").innerHTML = cur.explain;
+  $("hintBox").classList.add("hidden");
+  const cheer = pick(CHEERS);
+  $("cheer").textContent = cheer;
+  $("explain").innerHTML = cur.explain + `<div class="row"><button class="btn tiny" id="explainRead" aria-label="Read the explanation aloud">🔊 Read it to me</button></div>`;
+  $("explainRead").addEventListener("click", () => speak(cur.explain));
+  speak(cheer);
   $("explain").classList.remove("hidden");
   $("actRow").classList.add("hidden");
   $("nextRow").classList.remove("hidden");
@@ -981,7 +1181,11 @@ function showFinish() {
 
 document.querySelectorAll("#menu [data-mode]").forEach(b => b.addEventListener("click", () => startGame(b.dataset.mode)));
 $("checkBtn").addEventListener("click", check);
-$("showBtn").addEventListener("click", reveal);
+$("hintBtn").addEventListener("click", hint);
+$("hintReplay").addEventListener("click", () => speak($("hintText").innerHTML));
+$("readBtn").addEventListener("click", () => speak(questionText()));
+$("autoBtn").addEventListener("click", () => { autoRead = !autoRead; try { localStorage.setItem("mm_auto", autoRead ? "1" : "0"); } catch (e) {} drawAuto(); });
+drawAuto();
 $("nextBtn").addEventListener("click", next);
 $("againBtn").addEventListener("click", () => startGame(mode));
 document.querySelectorAll(".back").forEach(b => b.addEventListener("click", () => show("menu")));
