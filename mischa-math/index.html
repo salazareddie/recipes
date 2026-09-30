@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mischa Math</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --board: #2E4A3B;
+  --board-dark: #243B2F;
+  --frame: #9A6A3C;
+  --chalk: #F1F2EA;
+  --chalk-dim: rgba(241,242,234,.6);
+  --chalk-faint: rgba(241,242,234,.25);
+  --yellow: #F7D46A;
+  --pink: #F3A3B5;
+  --blue: #A6D8EA;
+  --tile: #FFF8E1;
+  --tile-ink: #2A2A2A;
+  --bg: #6B4726;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #3E2915; --frame: #7A5230; }
+}
+:root[data-theme="dark"] { --bg: #3E2915; --frame: #7A5230; }
+
+:root {
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+*, *::before, *::after { box-sizing: inherit; }
+html { height: 100%; }
+body {
+  margin: 0; min-height: 100%;
+  background: var(--bg);
+  font-family: "Andika", "Comic Sans MS", "Trebuchet MS", sans-serif;
+  color: var(--chalk);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 16px;
+  -webkit-tap-highlight-color: transparent;
+}
+.board {
+  width: 100%; max-width: 680px;
+  background: radial-gradient(ellipse at 30% 20%, #35553F 0%, var(--board) 55%, var(--board-dark) 100%);
+  border: 14px solid var(--frame);
+  border-radius: 10px;
+  box-shadow: inset 0 0 40px rgba(0,0,0,.35), 0 8px 0 rgba(0,0,0,.25);
+  padding: 22px 16px 20px;
+  text-align: center;
+}
+h1 { margin: 0 0 4px; font-size: 1.7rem; color: var(--yellow); }
+h2 { margin: 0 0 8px; font-size: 1.25rem; color: var(--yellow); }
+.sub { margin: 0 0 20px; color: var(--chalk-dim); }
+.hidden { display: none !important; }
+
+.menu-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.btn {
+  font-family: inherit; font-size: 1.1rem; font-weight: 700;
+  padding: 12px 20px; border-radius: 999px; border: 3px solid var(--chalk);
+  background: transparent; color: var(--chalk); cursor: pointer;
+  touch-action: manipulation;
+}
+.btn.main { background: var(--yellow); border-color: var(--yellow); color: #3A2A00; }
+.btn.small { font-size: .95rem; padding: 8px 16px; border-width: 2px; color: var(--chalk-dim); border-color: var(--chalk-dim); }
+.btn:active { transform: scale(.97); }
+.btn.menu { border-radius: 16px; text-align: left; padding: 14px 16px; font-size: 1.15rem; }
+.btn.menu span { display: block; font-size: .9rem; font-weight: 400; margin-top: 4px; opacity: .85; }
+.btn:focus-visible, .choice:focus-visible, input:focus-visible { outline: 4px solid var(--yellow); outline-offset: 3px; }
+.row { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+
+.stars { display: flex; justify-content: center; gap: 6px; margin: 4px 0 14px; flex-wrap: wrap; }
+.star { font-size: 1.3rem; color: var(--chalk-faint); }
+.star.done { color: var(--yellow); }
+.star.helped { color: var(--blue); }
+.star.current { color: var(--chalk); text-decoration: underline; text-underline-offset: 6px; }
+
+.prompt { font-size: 1.15rem; margin: 0 0 14px; line-height: 1.5; }
+.big { font-size: clamp(1.8rem, 8vw, 2.6rem); font-weight: 700; margin: 8px 0 14px; }
+.cheer { font-size: 1.4rem; color: var(--yellow); min-height: 1.5em; margin: 12px 0 0; }
+.msg { color: var(--pink); min-height: 1.4em; margin: 10px 0 0; }
+.explain {
+  text-align: left; background: rgba(0,0,0,.18); border-radius: 10px;
+  padding: 12px 14px; margin-top: 12px; line-height: 1.6; font-size: 1rem;
+}
+.explain ol { margin: 6px 0 0; padding-left: 22px; }
+
+input.ans {
+  font-family: inherit; font-size: 1.3rem; font-weight: 700;
+  background: var(--tile); color: var(--tile-ink);
+  border: 3px solid transparent; border-radius: 10px;
+  padding: 6px 8px; text-align: right; min-width: 3.5ch; max-width: 100%;
+}
+input.ans.right { background: var(--yellow); }
+input.ans.wrong { background: var(--pink); animation: shake .35s; }
+input.ans::placeholder { color: #B8AD8A; }
+
+/* area model */
+.area { display: grid; gap: 6px; margin: 6px auto 10px; max-width: 560px; }
+.area .h { font-weight: 700; font-size: 1.15rem; color: var(--yellow); align-self: end; padding: 2px; }
+.area .h.side { align-self: center; text-align: right; padding-right: 6px; }
+.area .cell {
+  border: 2px dashed var(--chalk-dim); border-radius: 8px; padding: 6px 4px;
+  display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: center;
+  min-width: 0;
+}
+.area .cell small { color: var(--chalk-dim); font-size: .85rem; white-space: nowrap; }
+.area .cell input { width: 100% !important; font-size: 1.1rem; text-align: center; padding: 6px 2px; }
+
+/* standard algorithm */
+.alg { display: inline-grid; grid-template-columns: auto auto; column-gap: 12px; row-gap: 6px; margin: 4px auto 8px; align-items: center; }
+.alg .op { font-size: 1.6rem; font-weight: 700; text-align: left; }
+.alg .num { font-family: "Courier New", monospace; font-size: 1.7rem; font-weight: 700; text-align: right; letter-spacing: .08em; }
+.alg .bar { grid-column: 1 / -1; border-top: 3px solid var(--chalk); }
+.alg input { font-family: "Courier New", monospace; letter-spacing: .08em; justify-self: end; }
+.alg .note { grid-column: 2; text-align: right; color: var(--chalk-dim); font-size: .85rem; margin-top: -4px; }
+
+/* multiple choice */
+.choices { display: flex; flex-direction: column; gap: 10px; align-items: center; margin: 6px 0; }
+.choice {
+  width: 100%; max-width: 480px;
+  background: var(--tile); color: var(--tile-ink);
+  border: none; border-radius: 14px;
+  font-family: inherit; font-size: 1.15rem; font-weight: 700; line-height: 1.4;
+  padding: 12px 14px; box-shadow: 0 5px 0 #C9B98A;
+  cursor: pointer; touch-action: manipulation;
+}
+.choice.num { font-size: 1.6rem; max-width: 300px; }
+.choice.right { background: var(--yellow); box-shadow: 0 5px 0 #C2A03F; }
+.choice.wrong { background: var(--pink); animation: shake .35s; }
+.choice.fade { opacity: .45; }
+.choice:disabled { cursor: default; }
+
+.final-list { list-style: none; padding: 0; margin: 10px auto 16px; font-size: 1.1rem; line-height: 1.8; }
+
+@keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }
+@media (prefers-reduced-motion: reduce) { input.ans.wrong, .choice.wrong { animation: none; } }
+</style>
+</head>
+<body>
+<main class="board">
+  <h1>Mischa Math</h1>
+
+  <section id="menu">
+    <p class="sub">Multiplying, dividing, decimals and standard form. New numbers every time.</p>
+    <div class="menu-grid">
+      <button class="btn main menu" data-mode="flash">⚡ Quick flash cards<span>Fast warm-ups: facts, tens, decimals</span></button>
+      <button class="btn menu" data-mode="area">🟩 Area model<span>Break it into parts and add them up</span></button>
+      <button class="btn menu" data-mode="std">✏️ Standard algorithm<span>Stack it and multiply, with decimals too</span></button>
+      <button class="btn menu" data-mode="why">🔍 Where does the decimal go?<span>Use a product you know. How do you know?</span></button>
+      <button class="btn menu" data-mode="div">➗ Long division<span>Find the quotient and the remainder</span></button>
+      <button class="btn menu" data-mode="form">🔢 Standard form<span>Turn expanded and word form into a number</span></button>
+      <button class="btn menu" data-mode="mix">🎲 Mix it up<span>A little of everything</span></button>
+    </div>
+  </section>
+
+  <section id="game" class="hidden">
+    <div class="stars" id="stars"></div>
+    <h2 id="qTitle"></h2>
+    <div id="qbox"></div>
+    <p class="msg" id="msg"></p>
+    <p class="cheer" id="cheer"></p>
+    <div class="explain hidden" id="explain"></div>
+    <div class="row" id="actRow">
+      <button class="btn main" id="checkBtn">Check</button>
+      <button class="btn" id="showBtn">👀 Show me</button>
+    </div>
+    <div class="row hidden" id="nextRow"><button class="btn main" id="nextBtn">Next</button></div>
+    <div class="row"><button class="btn small back">Back to menu</button></div>
+  </section>
+
+  <section id="finish" class="hidden">
+    <div class="big">🎉</div>
+    <p class="cheer" id="finalMsg"></p>
+    <ul class="final-list" id="finalList"></ul>
+    <div class="row">
+      <button class="btn main" id="againBtn">Play again</button>
+      <button class="btn back">Back to menu</button>
+    </div>
+  </section>
+</main>
+
+<script>
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const R = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const CHEERS = ["Great job!","You got it!","Math star!","Awesome!","Nailed it!","Way to go!","Smart thinking!"];
+
+// Numbers are kept as [integer, decimal places] pairs so decimals never pick up float errors.
+function norm([n, d]) { while (d > 0 && n % 10 === 0) { n /= 10; d--; } if (d < 0) { n *= 10 ** -d; d = 0; } return [n, d]; }
+function fmt(p) {
+  let [n, d] = norm(p);
+  const neg = n < 0; n = Math.abs(n);
+  let s = String(n), ip = s, fp = "";
+  if (d > 0) { s = s.padStart(d + 1, "0"); ip = s.slice(0, -d); fp = s.slice(-d); }
+  ip = ip.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return (neg ? "-" : "") + ip + (fp ? "." + fp : "");
+}
+const val = ([n, d]) => n / 10 ** d;
+const mul = (a, b) => [a[0] * b[0], a[1] + b[1]];
+function sum(list) { const d = Math.max(...list.map(p => p[1])); return [list.reduce((t, p) => t + p[0] * 10 ** (d - p[1]), 0), d]; }
+const W = n => [n, 0];
+function parseAns(s) {
+  s = String(s).replace(/[,\s$]/g, "");
+  if (!/^-?(\d+\.?\d*|\.\d+)$/.test(s)) return NaN;
+  return parseFloat(s);
+}
+const same = (a, b) => Math.round(a * 1e6) === Math.round(b * 1e6);
+const places = n => n === 1 ? "1 place" : n + " places";
+
+// a whole number with `len` digits, no zeros, so every place-value part shows up
+function digitsNum(len) { let s = String(R(1, 9)); while (s.length < len) s += R(1, 9); return +s; }
+
+// split [n,d] into place-value parts: 485 -> 400, 80, 5 ; 4.7 -> 4, 0.7
+function parts([n, d]) {
+  const s = String(n), out = [];
+  for (let i = 0; i < s.length; i++) {
+    const dig = +s[i]; if (!dig) continue;
+    const place = s.length - 1 - i - d;
+    out.push(place >= 0 ? [dig * 10 ** place, 0] : [dig, -place]);
+  }
+  return out;
+}
+
+function inp(ans, width, extra = "") {
+  const w = width || fmt(ans).length + 2;
+  return `<input class="ans" type="text" inputmode="decimal" autocomplete="off" autocapitalize="off" spellcheck="false"
+    data-ans="${val(ans)}" data-show="${fmt(ans)}" style="width:${w + 1.5}ch" ${extra}>`;
+}
+
+/* ---------- game generators ---------- */
+// Each returns { title, html, explain, check?(box), setup?(box, api) }.
+
+function genFlash() {
+  const t = R(0, 8);
+  let q, a, hint = "";
+  if (t === 0) { const x = R(3, 12), y = R(3, 12); q = `${x} × ${y}`; a = W(x * y); }
+  else if (t === 1) { const x = R(3, 12), y = R(3, 9); q = `${x * y} ÷ ${y}`; a = W(x); }
+  else if (t === 2) {
+    const x = R(2, 9) * pick([10, 100]), y = R(2, 9) * 10;
+    q = `${fmt(W(x))} × ${fmt(W(y))}`; a = W(x * y);
+    hint = `Multiply ${String(x).replace(/0+$/, "")} × ${String(y).replace(/0+$/, "")}, then add the zeros back.`;
+  }
+  else if (t === 3) {
+    const n = digitsNum(R(2, 3)), d = R(1, 2), p = R(1, 3);
+    q = `${fmt([n, d])} × ${fmt(W(10 ** p))}`; a = norm([n, d - p]);
+    hint = `Times ${fmt(W(10 ** p))} moves every digit ${places(p)} to the left.`;
+  }
+  else if (t === 4) {
+    const n = digitsNum(R(2, 3)), p = R(1, 2);
+    q = `${fmt(W(n))} ÷ ${fmt(W(10 ** p))}`; a = [n, p];
+    hint = `Divided by ${fmt(W(10 ** p))} moves every digit ${places(p)} to the right.`;
+  }
+  else if (t === 5) { const x = R(2, 9), y = R(2, 9); q = `0.${x} × ${y}`; a = [x * y, 1]; hint = `${x} × ${y} = ${x * y}, and there is 1 decimal place.`; }
+  else if (t === 6) { const x = R(2, 9), y = R(2, 9); q = `0.${x} × 0.${y}`; a = [x * y, 2]; hint = `${x} × ${y} = ${x * y}, and there are 2 decimal places.`; }
+  else if (t === 7) {
+    const x = digitsNum(3), dx = R(0, 2), y = digitsNum(2), dy = dx ? R(0, 1) : 1;
+    const k = dx + dy;
+    return {
+      title: "⚡ Flash card",
+      html: `<p class="prompt">Count the decimal places in the factors.</p>
+        <div class="big">${fmt([x, dx])} × ${fmt([y, dy])}</div>
+        <p class="prompt">How many decimal places go in the product? ${inp(W(k), 2)}</p>`,
+      explain: `${fmt([x, dx])} has ${places(dx)} after the decimal and ${fmt([y, dy])} has ${places(dy)}. ${dx} + ${dy} = ${k}.`
+    };
+  }
+  else {
+    const x = R(12, 89) * 10 + R(1, 9), y = R(12, 89);
+    const rx = Math.round(x / 100) * 100, ry = Math.round(y / 10) * 10;
+    return {
+      title: "⚡ Estimate it",
+      html: `<p class="prompt">Round ${x} to the nearest hundred and ${y} to the nearest ten. Then multiply.</p>
+        <div class="big">${x} × ${y} ≈ ${inp(W(rx * ry))}</div>`,
+      explain: `${x} rounds to ${fmt(W(rx))} and ${y} rounds to ${ry}. ${fmt(W(rx))} × ${ry} = ${fmt(W(rx * ry))}.`
+    };
+  }
+  return {
+    title: "⚡ Flash card",
+    html: `<div class="big">${q} = ${inp(a)}</div>`,
+    explain: `${q} = ${fmt(a)}.${hint ? " " + hint : ""}`
+  };
+}
+
+function genArea() {
+  const dec = Math.random() < 0.35;
+  const A = dec ? [digitsNum(2), 1] : W(digitsNum(Math.random() < 0.65 ? 3 : 2));
+  const B = W(digitsNum(2));
+  const pa = parts(A), pb = parts(B);
+  const prods = [];
+  let cells = `<div></div>` + pa.map(p => `<div class="h">${fmt(p)}</div>`).join("");
+  pb.forEach(b => {
+    cells += `<div class="h side">${fmt(b)}</div>`;
+    pa.forEach(a => {
+      const p = mul(a, b); prods.push(p);
+      cells += `<div class="cell"><small>${fmt(a)} × ${fmt(b)}</small>${inp(p, 4)}</div>`;
+    });
+  });
+  const total = mul(A, B);
+  return {
+    title: "🟩 Area model",
+    html: `<p class="prompt">Break ${fmt(A)} and ${fmt(B)} into place-value parts. Fill in each box, then add them all.</p>
+      <div class="big" style="font-size:1.8rem">${fmt(A)} × ${fmt(B)}</div>
+      <div class="area" style="grid-template-columns: auto repeat(${pa.length}, minmax(0, 1fr))">${cells}</div>
+      <p class="prompt">Add the parts: ${fmt(A)} × ${fmt(B)} = ${inp(total)}</p>`,
+    explain: `${fmt(A)} = ${pa.map(fmt).join(" + ")} and ${fmt(B)} = ${pb.map(fmt).join(" + ")}.<br>
+      Parts: ${prods.map(fmt).join(" + ")} = <b>${fmt(sum(prods))}</b>`
+  };
+}
+
+function genStd() {
+  const dec = Math.random() < 0.4;
+  const a = digitsNum(Math.random() < 0.7 ? 3 : 2), b = digitsNum(2);
+  let da = 0, db = 0;
+  if (dec) { da = R(0, 2); db = da ? R(0, 1) : 1; }
+  const A = [a, da], B = [b, db], k = da + db;
+  const ones = b % 10, tens = Math.floor(b / 10) * 10;
+  const r1 = a * ones, r2 = a * tens, tot = a * b;
+  const w = fmt(W(tot)).length + 3;
+  const decLine = dec
+    ? `<p class="prompt">Now place the decimal. Count the decimal places in both factors.<br>
+        ${fmt(A)} × ${fmt(B)} = ${inp([tot, k])}</p>` : "";
+  return {
+    title: "✏️ Standard algorithm",
+    html: `<p class="prompt">${dec ? "Multiply like whole numbers first. Ignore the decimals for now." : "Multiply the ones, then the tens, then add."}</p>
+      <div class="alg">
+        <span></span><span class="num">${fmt(A)}</span>
+        <span class="op">×</span><span class="num">${fmt(B)}</span>
+        <div class="bar"></div>
+        <span></span>${inp(W(r1), w)}
+        <span class="note">${a} × ${ones}</span>
+        <span class="op">+</span>${inp(W(r2), w)}
+        <span class="note">${a} × ${tens}</span>
+        <div class="bar"></div>
+        <span></span>${inp(W(tot), w)}
+      </div>
+      ${decLine}`,
+    explain: `${a} × ${ones} = ${fmt(W(r1))}<br>${a} × ${tens} = ${fmt(W(r2))}<br>${fmt(W(r1))} + ${fmt(W(r2))} = <b>${fmt(W(tot))}</b>` +
+      (dec ? `<br>${fmt(A)} has ${places(da)} and ${fmt(B)} has ${places(db)}, so ${places(k)} in all: <b>${fmt(A)} × ${fmt(B)} = ${fmt([tot, k])}</b>` : "")
+  };
+}
+
+function genWhy() {
+  const a = digitsNum(3), b = digitsNum(2), P = a * b;
+  const [da, db] = pick([[0, 1], [1, 0], [2, 0], [1, 1], [2, 1], [0, 1], [1, 1]]);
+  const k = da + db, A = [a, da], B = [b, db];
+  const answer = fmt([P, k]);
+  const shifts = shuffle([k - 1, k + 1, k + 2, -1].filter(s => s !== k)).slice(0, 3);
+  const nums = shuffle([answer, ...shifts.map(s => fmt([P, s]))]);
+
+  const how = f => f[1] === 0 ? `${fmt(W(f[0]))} is the same` : `${fmt(f)} is ${fmt(W(f[0]))} ÷ ${fmt(W(10 ** f[1]))}`;
+  const right = `${how(A)} and ${how(B)}, so the product is ${fmt(W(P))} ÷ ${fmt(W(10 ** k))} = ${answer}.`;
+  const wrongs = [
+    `Multiplying always makes a bigger number, so the answer has to be more than ${fmt(W(P))}.`,
+    `Count all the digits: ${String(a).length + String(b).length} digits, so move the decimal ${String(a).length + String(b).length} places.`,
+  ];
+  if (Math.max(da, db) !== k) wrongs.push(`Line up the decimal points like adding, so the answer has ${places(Math.max(da, db))} after the decimal.`);
+  else wrongs.push(`Decimals don't change a product, so it is still ${fmt(W(P))}.`);
+  const reasons = shuffle([right, ...shuffle(wrongs).slice(0, 2)]);
+
+  const unit = 10 ** (String(a).length - 1), lead = Math.round(a / unit) * unit;
+  const est = val([lead, da]) * val(B);
+  const estTxt = Number(est.toFixed(4)).toLocaleString("en-US", { maximumFractionDigits: 4 });
+
+  return {
+    title: "🔍 Where does the decimal go?",
+    html: `<p class="prompt">You know that <b>${fmt(W(a))} × ${fmt(W(b))} = ${fmt(W(P))}</b>.</p>
+      <div class="big" style="font-size:1.8rem">What is ${fmt(A)} × ${fmt(B)}?</div>
+      <div class="choices" id="c1">${nums.map(n => `<button class="choice num" data-v="${n}">${n}</button>`).join("")}</div>
+      <div id="part2" class="hidden">
+        <p class="prompt" style="margin-top:18px"><b>How do you know?</b></p>
+        <div class="choices" id="c2">${reasons.map((r, i) => `<button class="choice" data-i="${i}">${r}</button>`).join("")}</div>
+      </div>`,
+    explain: `${right}<br>Estimate to check: ${fmt(A)} × ${fmt(B)} is about ${fmt([lead, da])} × ${fmt(B)} = ${estTxt}, and ${answer} is close to that.`,
+    setup(box, api) {
+      const c1 = box.querySelector("#c1"), c2 = box.querySelector("#c2");
+      const good = r => r === right;
+      const stage = (wrap, isRight, next) => {
+        wrap.querySelectorAll(".choice").forEach(btn => btn.addEventListener("click", () => {
+          if (btn.disabled) return;
+          if (isRight(btn)) {
+            btn.classList.add("right");
+            wrap.querySelectorAll(".choice").forEach(c => { c.disabled = true; if (c !== btn) c.classList.add("fade"); });
+            next();
+          } else {
+            api.helped();
+            btn.classList.remove("wrong"); void btn.offsetWidth; btn.classList.add("wrong");
+            api.msg("Not that one. Try again.");
+          }
+        }));
+      };
+      stage(c1, btn => btn.dataset.v === answer, () => { api.msg(""); box.querySelector("#part2").classList.remove("hidden"); });
+      stage(c2, btn => good(reasons[+btn.dataset.i]), () => { api.msg(""); api.solved(); });
+      this.reveal = () => {
+        [[c1, btn => btn.dataset.v === answer], [c2, btn => good(reasons[+btn.dataset.i])]].forEach(([wrap, ok]) =>
+          wrap.querySelectorAll(".choice").forEach(c => { c.disabled = true; c.classList.add(ok(c) ? "right" : "fade"); }));
+        box.querySelector("#part2").classList.remove("hidden");
+      };
+    }
+  };
+}
+
+function divSteps(N, d) {
+  const s = String(N), steps = [];
+  let cur = 0, started = false;
+  for (let i = 0; i < s.length; i++) {
+    cur = cur * 10 + +s[i];
+    if (!started && cur < d && i < s.length - 1) continue;
+    started = true;
+    const q = Math.floor(cur / d), m = q * d, rem = cur - m;
+    let line = `How many ${d}s in ${cur}? <b>${q}</b>. ${q} × ${d} = ${m}. ${cur} − ${m} = ${rem}.`;
+    if (i < s.length - 1) line += ` Bring down the ${s[i + 1]} to make ${rem * 10 + +s[i + 1]}.`;
+    steps.push(line);
+    cur = rem;
+  }
+  return steps;
+}
+
+function genDiv() {
+  const two = Math.random() < 0.4;
+  const d = two ? R(11, 29) : R(3, 9);
+  let N;
+  if (Math.random() < 0.4) N = d * R(two ? 12 : 21, two ? 99 : 999);
+  else N = two ? R(250, 2999) : (Math.random() < 0.5 ? R(100, 999) : R(1000, 9999));
+  const q = Math.floor(N / d), r = N % d;
+  return {
+    title: "➗ Long division",
+    html: `<div class="big">${fmt(W(N))} ÷ ${d}</div>
+      <p class="prompt">Quotient ${inp(W(q))} &nbsp; R ${inp(W(r), 3)}</p>
+      <p class="prompt" style="font-size:.95rem;color:var(--chalk-dim)">No remainder? Type 0.</p>`,
+    explain: `<ol>${divSteps(N, d).map(s => `<li>${s}</li>`).join("")}</ol>
+      Answer: <b>${fmt(W(q))} R ${r}</b>. Check: ${fmt(W(q))} × ${d}${r ? ` + ${r}` : ""} = ${fmt(W(N))}`
+  };
+}
+
+const ONES = ["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
+const TENS = ["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
+function w999(n) {
+  const out = [];
+  if (n >= 100) { out.push(ONES[Math.floor(n / 100)] + " hundred"); n %= 100; }
+  if (n >= 20) out.push(TENS[Math.floor(n / 10)] + (n % 10 ? "-" + ONES[n % 10] : ""));
+  else if (n > 0) out.push(ONES[n]);
+  return out.join(" ");
+}
+function words([n, d]) {
+  const ip = Math.floor(n / 10 ** d), fp = n % 10 ** d;
+  let s = ip >= 1000 ? w999(Math.floor(ip / 1000)) + " thousand" + (ip % 1000 ? " " + w999(ip % 1000) : "") : w999(ip);
+  if (fp) s += " and " + w999(fp) + " " + (d === 1 ? "tenth" : "hundredth") + (fp === 1 ? "" : "s");
+  return s;
+}
+const PLACE = { 4: "ten thousands", 3: "thousands", 2: "hundreds", 1: "tens", 0: "ones", "-1": "tenths", "-2": "hundredths" };
+const PLACE1 = { 4: "ten thousand", 3: "thousand", 2: "hundred", 1: "ten", 0: "one", "-1": "tenth", "-2": "hundredth" };
+
+function genForm() {
+  const len = R(3, 5), d = R(0, 2);
+  let s = String(R(1, 9));
+  for (let i = 1; i < len + d; i++) s += Math.random() < 0.3 ? 0 : R(1, 9);
+  if (d) s = s.slice(0, -1) + R(1, 9);
+  const num = [+s, d];
+  const terms = [];
+  for (let i = 0; i < s.length; i++) {
+    const dig = +s[i]; if (!dig) continue;
+    terms.push({ dig, place: s.length - 1 - i - d });
+  }
+  const t = R(0, 3);
+  let prompt, shown;
+  if (t === 0) { prompt = "Expanded form"; shown = terms.map(x => fmt([x.dig, -x.place])).join(" + "); }
+  else if (t === 1) { prompt = "Expanded form with multiplication"; shown = terms.map(x => `(${x.dig} × ${fmt([1, -x.place])})`).join(" + "); }
+  else if (t === 2) { prompt = "Word form"; shown = words(num); }
+  else { prompt = "Unit form"; shown = terms.map(x => `${x.dig} ${x.dig === 1 ? PLACE1[x.place] : PLACE[x.place]}`).join(", "); }
+  return {
+    title: "🔢 Standard form",
+    html: `<p class="prompt">${prompt}:</p>
+      <div class="big" style="font-size:${t === 2 ? "1.35rem" : "1.5rem"};line-height:1.5">${shown}</div>
+      <p class="prompt">Write it in standard form: ${inp(num, 12)}</p>`,
+    explain: `Standard form: <b>${fmt(num)}</b><br>Word form: ${words(num)}`
+  };
+}
+
+const GENS = { flash: genFlash, area: genArea, std: genStd, why: genWhy, div: genDiv, form: genForm };
+const ROUND = { flash: 10, area: 5, std: 5, why: 6, div: 5, form: 8, mix: 8 };
+const NAMES = { flash: "flash cards", area: "area models", std: "standard algorithm problems", why: "decimal puzzles", div: "long division problems", form: "standard form problems", mix: "mixed problems" };
+
+/* ---------- game loop ---------- */
+let mode = null, idx = 0, results = [], helped = false, done = false, cur = null;
+
+function show(id) { ["menu", "game", "finish"].forEach(s => $(s).classList.toggle("hidden", s !== id)); }
+
+function drawStars() {
+  const s = $("stars"); s.innerHTML = "";
+  for (let i = 0; i < ROUND[mode]; i++) {
+    const el = document.createElement("span");
+    el.className = "star"; el.textContent = "★";
+    if (results[i] === "clean") el.classList.add("done");
+    else if (results[i] === "helped") el.classList.add("helped");
+    else if (i === idx) el.classList.add("current");
+    s.appendChild(el);
+  }
+}
+
+function startGame(m) { mode = m; idx = 0; results = []; nextQuestion(); }
+
+function nextQuestion() {
+  helped = false; done = false;
+  const gen = mode === "mix" ? pick(Object.values(GENS)) : GENS[mode];
+  cur = gen();
+  show("game"); drawStars();
+  $("qTitle").textContent = cur.title;
+  const box = $("qbox");
+  box.innerHTML = cur.html;
+  $("msg").textContent = ""; $("cheer").textContent = "";
+  $("explain").classList.add("hidden"); $("explain").innerHTML = "";
+  $("actRow").classList.remove("hidden"); $("nextRow").classList.add("hidden");
+  $("checkBtn").classList.toggle("hidden", !!cur.setup);
+  if (cur.setup) cur.setup(box, { helped: () => { helped = true; }, msg: t => { $("msg").textContent = t; }, solved });
+  const inputs = [...box.querySelectorAll("input.ans")];
+  inputs.forEach((el, i) => {
+    el.addEventListener("keydown", e => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      const nextEmpty = inputs.slice(i + 1).find(x => !x.value);
+      if (nextEmpty) nextEmpty.focus(); else check();
+    });
+    el.addEventListener("input", () => el.classList.remove("wrong", "right"));
+  });
+  if (inputs[0] && matchMedia("(pointer: fine)").matches) inputs[0].focus();
+}
+
+function check() {
+  if (done || cur.setup) return;
+  const inputs = [...$("qbox").querySelectorAll("input.ans")];
+  let ok = true, blank = false;
+  inputs.forEach(el => {
+    if (!el.value.trim()) { blank = true; ok = false; el.classList.remove("right", "wrong"); return; }
+    const good = same(parseAns(el.value), +el.dataset.ans);
+    el.classList.toggle("right", good);
+    el.classList.remove("wrong");
+    if (!good) { void el.offsetWidth; el.classList.add("wrong"); ok = false; }
+  });
+  if (ok) { $("msg").textContent = ""; solved(); }
+  else $("msg").textContent = inputs.some(el => el.classList.contains("wrong"))
+    ? "Not quite. Fix the pink boxes." : "Fill in every box first.";
+}
+
+function reveal() {
+  if (done) return;
+  helped = true;
+  if (cur.reveal) cur.reveal();
+  $("qbox").querySelectorAll("input.ans").forEach(el => { el.value = el.dataset.show; el.classList.remove("wrong"); el.classList.add("right"); });
+  $("msg").textContent = "";
+  solved(true);
+}
+
+function solved(revealed) {
+  done = true;
+  results[idx] = helped ? "helped" : "clean";
+  $("qbox").querySelectorAll("input.ans").forEach(el => { el.readOnly = true; });
+  $("cheer").textContent = revealed ? "Here's how it works:" : pick(CHEERS);
+  $("explain").innerHTML = cur.explain;
+  $("explain").classList.remove("hidden");
+  $("actRow").classList.add("hidden");
+  $("nextRow").classList.remove("hidden");
+  $("nextBtn").textContent = idx === ROUND[mode] - 1 ? "See my stars" : "Next";
+  drawStars();
+  $("nextBtn").focus();
+}
+
+function next() {
+  idx++;
+  if (idx >= ROUND[mode]) return showFinish();
+  nextQuestion();
+}
+
+function showFinish() {
+  show("finish");
+  const n = ROUND[mode], clean = results.filter(r => r === "clean").length;
+  $("finalMsg").textContent = clean === n ? `All ${n} ${NAMES[mode]} with no help. Amazing!` : `You finished all ${n} ${NAMES[mode]}! ${clean} with no help.`;
+  $("finalList").innerHTML = `<li>${"⭐".repeat(clean)}${"💙".repeat(n - clean)}</li>`;
+}
+
+document.querySelectorAll("#menu [data-mode]").forEach(b => b.addEventListener("click", () => startGame(b.dataset.mode)));
+$("checkBtn").addEventListener("click", check);
+$("showBtn").addEventListener("click", reveal);
+$("nextBtn").addEventListener("click", next);
+$("againBtn").addEventListener("click", () => startGame(mode));
+document.querySelectorAll(".back").forEach(b => b.addEventListener("click", () => show("menu")));
+show("menu");
+</script>
+</body>
+</html>
