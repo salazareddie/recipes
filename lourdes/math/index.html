@@ -119,8 +119,7 @@ input.ans.wrong { background: var(--pink); animation: shake .35s; }
 .col input.ans.cy { font-size: 1rem; height: 1.8rem; padding: 0; background: rgba(255,255,255,.1); color: var(--yellow); }
 .col .lab { grid-column: 2 / -1; font-size: .78rem; color: var(--chalk-dim); display: grid; grid-template-columns: repeat(3, 3.2rem); gap: 6px; }
 .col .lab span { text-align: center; }
-.col .strike { position: relative; color: var(--chalk-dim); }
-.col .strike::after { content: ""; position: absolute; left: 15%; right: 15%; top: 50%; border-top: 3px solid var(--pink); transform: rotate(-20deg); }
+.tip { font-size: .95rem; color: var(--chalk-dim); margin: 0 0 10px; line-height: 1.5; }
 
 /* base ten blocks */
 .blocks { display: flex; flex-wrap: wrap; gap: 14px 18px; justify-content: center; align-items: flex-end; margin: 8px auto 14px; max-width: 520px; }
@@ -306,14 +305,12 @@ function genAddSub() {
 
   if (!sub) {
     const carry = A.o + B.o >= 10 ? 1 : 0, tensSum = A.t + B.t + carry;
-    topRow = `<span></span><span></span>${carry ? cell("cy", 1, 'aria-label="carry"') : "<span></span>"}<span></span>`;
+    topRow = `<span></span><span></span>${cell("cy", carry, 'aria-label="carry"')}<span></span>`;
     hints = { carry, tensSum };
     explain = `Ones: ${A.o} + ${B.o} = ${A.o + B.o}.${carry ? ` Write ${(A.o + B.o) % 10}, carry 1.` : ""}<br>Tens: ${A.t} + ${B.t}${carry ? " + 1" : ""} = ${tensSum}.<br><b>${q} = ${ans}</b>`;
   } else {
     const borrow = A.o < B.o;
-    topRow = borrow
-      ? `<span></span><span></span>${cell("cy", A.t - 1, 'aria-label="new tens"')}${cell("cy", A.o + 10, 'aria-label="new ones"')}`
-      : `<span></span><span></span><span></span><span></span>`;
+    topRow = `<span></span><span></span>${cell("cy", A.t - 1, 'aria-label="new tens"')}${cell("cy", A.o + 10, 'aria-label="new ones"')}`;
     hints = { borrow };
     explain = borrow
       ? `${A.o} is smaller than ${B.o}, so borrow a ten: the ${A.t} becomes ${A.t - 1} and the ${A.o} becomes ${A.o + 10}.<br>Ones: ${A.o + 10} − ${B.o} = ${S.o}. Tens: ${A.t - 1} − ${B.t} = ${S.t}.<br><b>${q} = ${ans}</b>`
@@ -323,12 +320,13 @@ function genAddSub() {
   const html = `<div class="big">${q}</div>
     <div class="col">
       ${topRow}
-      <span></span><span></span><span class="d${sub && hints.borrow ? " strike" : ""}">${A.t}</span><span class="d${sub && hints.borrow ? " strike" : ""}">${A.o}</span>
+      <span></span><span></span><span class="d">${A.t}</span><span class="d">${A.o}</span>
       <span class="d sign">${sub ? "−" : "+"}</span><span></span><span class="d">${B.t}</span><span class="d">${B.o}</span>
       <div class="bar"></div>
       <span></span>${S.h ? cell("h", S.h, 'aria-label="hundreds"') : "<span></span>"}${cell("t", S.t, 'aria-label="tens"')}${cell("o", S.o, 'aria-label="ones"')}
       <div class="lab"><span>hundreds</span><span>tens</span><span>ones</span></div>
-    </div>`;
+    </div>
+    <p class="tip">${sub ? "Need to borrow? Write the new numbers in the small boxes above." : "Need to carry? Write the 1 in the small box above the tens."}</p>`;
 
   return {
     title: sub ? "➖ Subtract" : "➕ Add",
@@ -338,8 +336,14 @@ function genAddSub() {
     setup(box, api) {
       const el = cls => box.querySelector(`input.${cls}`);
       const val = cls => { const e = el(cls); return e ? e.value.trim() : ""; };
+      const cyAll = [...box.querySelectorAll("input.cy")];
       const okDigit = (cls, want) => val(cls) === String(want) || (want === 0 && cls !== "o" && val(cls) === "");
-      box.querySelectorAll("input.ans").forEach(e => e.addEventListener("input", () => { e.value = e.value.replace(/\D/g, "").slice(-2); e.classList.remove("wrong", "right"); }));
+      const after = { o: "t", t: "h" };
+      box.querySelectorAll("input.ans").forEach(e => e.addEventListener("input", () => {
+        e.value = e.value.replace(/\D/g, "").slice(-2); e.classList.remove("wrong", "right");
+        const cls = ["o", "t"].find(c => e.classList.contains(c));
+        if (cls && e.value) { const nx = el(after[cls]); if (nx) nx.focus(); }
+      }));
       const steps = [];
       if (!sub) {
         const { carry, tensSum } = hints, oSum = A.o + B.o;
@@ -356,7 +360,7 @@ function genAddSub() {
           `Write ${S.t} in the tens box${S.h ? " and 1 in the hundreds box" : ""}.`] });
       } else {
         const { borrow } = hints, o = borrow ? A.o + 10 : A.o, t = borrow ? A.t - 1 : A.t;
-        if (borrow) steps.push({ el: el("cy"), done: () => val("cy") === String(A.t - 1) && box.querySelectorAll("input.cy")[1].value.trim() === String(A.o + 10), hints: [
+        if (borrow) steps.push({ el: el("cy"), done: () => cyAll[0].value.trim() === String(A.t - 1) && cyAll[1].value.trim() === String(A.o + 10), hints: [
           `Look at the ones: ${A.o} − ${B.o}. Can you take ${B.o} away from ${A.o}?`,
           `No, ${A.o} is too small. Borrow 1 ten from the ${A.t}. The ${A.t} becomes ${A.t - 1}, and the ${A.o} becomes ${A.o + 10}.`,
           `Write ${A.t - 1} in the small box above the ${A.t}, and ${A.o + 10} in the small box above the ${A.o}.`] });
@@ -666,7 +670,7 @@ function nextQuestion() {
 function questionText() {
   if (cur.say) return cur.say;
   const clone = $("qbox").cloneNode(true);
-  clone.querySelectorAll(".hidden, .blocks, .col, .lab").forEach(el => el.remove());
+  clone.querySelectorAll(".hidden, .blocks, .col, .lab, .tip").forEach(el => el.remove());
   clone.querySelectorAll("input").forEach(el => el.replaceWith(" blank "));
   const bits = [...clone.querySelectorAll(".prompt, .big")].map(el => el.textContent);
   const ch = [...clone.querySelectorAll(".choice")].map(el => el.textContent);
