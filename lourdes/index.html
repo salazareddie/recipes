@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lourdes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --board: #2E4A3B; --board-dark: #243B2F; --frame: #9A6A3C;
+  --chalk: #F1F2EA; --chalk-dim: rgba(241,242,234,.6); --yellow: #F7D46A; --bg: #6B4726;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #3E2915; --frame: #7A5230; } }
+:root[data-theme="dark"] { --bg: #3E2915; --frame: #7A5230; }
+:root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+*, *::before, *::after { box-sizing: inherit; }
+html { height: 100%; }
+body {
+  margin: 0; min-height: 100%; background: var(--bg);
+  font-family: "Andika", "Comic Sans MS", "Trebuchet MS", sans-serif; color: var(--chalk);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.board {
+  width: 100%; max-width: 560px;
+  background: radial-gradient(ellipse at 30% 20%, #35553F 0%, var(--board) 55%, var(--board-dark) 100%);
+  border: 14px solid var(--frame); border-radius: 10px;
+  box-shadow: inset 0 0 40px rgba(0,0,0,.35), 0 8px 0 rgba(0,0,0,.25);
+  padding: 26px 18px 24px; text-align: center;
+}
+h1 { margin: 0 0 4px; font-size: 2rem; color: var(--yellow); }
+.sub { margin: 0 0 24px; color: var(--chalk-dim); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+.tile {
+  display: block; text-decoration: none; color: var(--chalk);
+  border: 3px solid var(--chalk); border-radius: 18px; padding: 22px 16px;
+  font-size: 1.4rem; font-weight: 700;
+}
+.tile .big { display: block; font-size: 3rem; margin-bottom: 6px; }
+.tile span.d { display: block; font-size: .95rem; font-weight: 400; color: var(--chalk-dim); margin-top: 6px; }
+.tile:hover, .tile:focus-visible { border-color: var(--yellow); color: var(--yellow); outline: none; }
+.tile:active { transform: scale(.97); }
+</style>
+</head>
+<body>
+<main class="board">
+  <h1>Lourdes</h1>
+  <p class="sub">Pick something to practice.</p>
+  <div class="tiles">
+    <a class="tile" href="../spelling/"><span class="big">🔤</span>Spelling<span class="d">Build the word, spot the spelling, hard mode</span></a>
+    <a class="tile" href="math/"><span class="big">🧮</span>Math<span class="d">Adding, subtracting, place value, greater and less</span></a>
+  </div>
+</main>
+</body>
+</html>
