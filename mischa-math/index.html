@@ -111,12 +111,12 @@ input.ans::placeholder { color: #B8AD8A; }
 .area .cell input { width: 100% !important; font-size: 1.1rem; text-align: center; padding: 6px 2px; }
 
 /* standard algorithm */
-.alg { display: inline-grid; grid-template-columns: auto auto; column-gap: 12px; row-gap: 6px; margin: 4px auto 8px; align-items: center; }
-.alg .op { font-size: 1.6rem; font-weight: 700; text-align: left; }
-.alg .num { font-family: "Courier New", monospace; font-size: 1.7rem; font-weight: 700; text-align: right; letter-spacing: .08em; }
-.alg .bar { grid-column: 1 / -1; border-top: 3px solid var(--chalk); }
-.alg input { font-family: "Courier New", monospace; letter-spacing: .08em; justify-self: end; }
-.alg .note { grid-column: 2; text-align: right; color: var(--chalk-dim); font-size: .85rem; margin-top: -4px; }
+
+/* digit grids (multiplication and long division) */
+.ld .num { font-family: "Courier New", monospace; font-size: 1.7rem; font-weight: 700; text-align: center; }
+.ld .lab.tiny { font-size: .78rem; color: var(--chalk-dim); align-self: center; white-space: nowrap; }
+.ld input.dg.cy { height: 1.5rem; font-size: .95rem; color: var(--yellow); background: rgba(255,255,255,.04); border-bottom: 1px dotted var(--chalk-faint); }
+.ld .bar { grid-column: 2 / -1; border-top: 3px solid var(--chalk); margin: 2px 0; }
 
 /* long division workspace */
 .ld { display: inline-grid; gap: 4px 2px; margin: 4px auto 6px; align-items: end; }
@@ -467,44 +467,106 @@ function genStd() {
   let da = 0, db = 0;
   if (dec) { da = R(0, 2); db = da ? R(0, 1) : 1; }
   const A = [a, da], B = [b, db], k = da + db;
-  const ones = b % 10, tens = Math.floor(b / 10) * 10;
+  const ones = b % 10, td = Math.floor(b / 10), tens = td * 10;
   const r1 = a * ones, r2 = a * tens, tot = a * b;
-  const w = fmt(W(tot)).length + 3;
-  const td = Math.floor(b / 10);
-  const hints = [
-    [`Multiply ${a} by the ones digit, ${ones}. Start from the right.`,
-     `Break it up: ${parts(W(a)).map(p => `${fmt(p)} × ${ones} = ${fmt(mul(p, W(ones)))}`).join(", ")}. Add those.`,
-     `${a} × ${ones} = ${fmt(W(r1))}.`],
-    [`Now multiply ${a} by the tens digit. ${td} tens is ${tens}. Write a 0 on the end first.`,
-     `${a} × ${td} = ${fmt(W(a * td))}. Then put the 0 on the end, because it is really ${td} tens.`,
-     `${a} × ${tens} = ${fmt(W(r2))}.`],
-    [`Add the two rows.`, `${fmt(W(r1))} + ${fmt(W(r2))}. Line up the ones and add from the right.`, `${fmt(W(r1))} + ${fmt(W(r2))} = ${fmt(W(tot))}.`]
-  ];
-  if (dec) hints.push([`Count the decimal places in ${fmt(A)} and in ${fmt(B)}, then add them.`,
-    `${fmt(A)} has ${places(da)} and ${fmt(B)} has ${places(db)}, so ${places(k)} in all. Start at the right end of ${fmt(W(tot))} and count ${places(k)} to the left.`,
-    `${fmt(A)} × ${fmt(B)} = ${fmt([tot, k])}.`]);
+  const sa = String(a), sb = String(b), n = String(tot).length, last = n - 1;
+  const aCol = j => last - (sa.length - 1 - j);      // grid column of digit j of a
+  const cy = (r, c) => `<input class="dg cy" data-r="${r}" data-c="${c}" type="text" inputmode="numeric" autocomplete="off" aria-label="carry">`;
+  const dg = (r, c) => `<input class="dg wk" data-r="${r}" data-c="${c}" type="text" inputmode="numeric" autocomplete="off" aria-label="row ${r + 1} column ${c + 1}">`;
+  const rowOf = fn => Array.from({ length: n }, (_, c) => fn(c)).join("");
+  const stat = str => rowOf(c => { const j = c - (n - str.length); return `<span class="num">${j >= 0 ? str[j] : ""}</span>`; });
+  const grid = `<span class="lab tiny">×${td} carry</span>${rowOf(c => cy("c2", c))}
+    <span class="lab tiny">×${ones} carry</span>${rowOf(c => cy("c1", c))}
+    <span></span>${stat(sa)}
+    <span class="lab">×</span>${stat(sb)}
+    <div class="bar"></div>
+    <span class="lab tiny">+ carry</span>${rowOf(c => cy("c3", c))}
+    <span class="lab tiny">×${ones}</span>${rowOf(c => dg(0, c))}
+    <span class="lab tiny">×${tens}</span>${rowOf(c => dg(1, c))}
+    <div class="bar"></div>
+    <span></span>${rowOf(c => dg(2, c))}`;
   const decLine = dec
     ? `<p class="prompt">Now place the decimal. Count the decimal places in both factors.<br>
         ${fmt(A)} × ${fmt(B)} = ${inp([tot, k])}</p>` : "";
   return {
     title: "✏️ Standard algorithm",
-    html: `<p class="prompt">${dec ? "Multiply like whole numbers first. Ignore the decimals for now." : "Multiply the ones, then the tens, then add."}</p>
-      <div class="alg">
-        <span></span><span class="num">${fmt(A)}</span>
-        <span class="op">×</span><span class="num">${fmt(B)}</span>
-        <div class="bar"></div>
-        <span></span>${inp(W(r1), w)}
-        <span class="note">${a} × ${ones}</span>
-        <span class="op">+</span>${inp(W(r2), w)}
-        <span class="note">${a} × ${tens}</span>
-        <div class="bar"></div>
-        <span></span>${inp(W(tot), w)}
-      </div>
+    html: `<div class="big" style="font-size:1.8rem">${fmt(A)} × ${fmt(B)}</div>
+      <p class="tip">${dec ? "Multiply like whole numbers first. Ignore the decimals for now. " : ""}One digit per box, starting from the right. Write carries in the small boxes above.</p>
+      <div class="ld" style="grid-template-columns: auto repeat(${n}, 2.3rem)">${grid}</div>
       ${decLine}`,
-    hints,
-    say: `${fmt(A)} times ${fmt(B)}. ${dec ? "Multiply like whole numbers first, then place the decimal." : "Multiply the ones, then the tens, then add."}`,
+    say: `${fmt(A)} times ${fmt(B)}. ${dec ? "Multiply like whole numbers first, then place the decimal." : "Multiply by the ones, then by the tens, then add."}`,
     explain: `${a} × ${ones} = ${fmt(W(r1))}<br>${a} × ${tens} = ${fmt(W(r2))}<br>${fmt(W(r1))} + ${fmt(W(r2))} = <b>${fmt(W(tot))}</b>` +
-      (dec ? `<br>${fmt(A)} has ${places(da)} and ${fmt(B)} has ${places(db)}, so ${places(k)} in all: <b>${fmt(A)} × ${fmt(B)} = ${fmt([tot, k])}</b>` : "")
+      (dec ? `<br>${fmt(A)} has ${places(da)} and ${fmt(B)} has ${places(db)}, so ${places(k)} in all: <b>${fmt(A)} × ${fmt(B)} = ${fmt([tot, k])}</b>` : ""),
+    focus: `input.dg[data-r="0"][data-c="${last}"]`,
+    setup(box, api) {
+      const at = (r, c) => box.querySelector(`input.dg[data-r="${r}"][data-c="${c}"]`);
+      wireGrid(box, at, -1);
+      const decInp = box.querySelector("input.ans");
+
+      // multiply a by one digit m into grid row rr; shift = 1 means it is the tens row (write a 0 first)
+      const mulSteps = (m, rr, shift, carryRow) => {
+        const steps = [], rowName = shift ? `the ${a} × ${tens} row` : `the ${a} × ${ones} row`;
+        if (shift) steps.push({ el: at(rr, last), done: () => at(rr, last).value === "0",
+          hints: [`This row is ${a} × ${tens}. ${td} tens means the answer ends in 0. What goes in the right-hand box?`, `Write a 0 in the right-hand box of ${rowName}. Then multiply ${a} by ${td}.`] });
+        let carry = 0;
+        for (let j = sa.length - 1; j >= 0; j--) {
+          const d = +sa[j], col = aCol(j) - shift, prod = d * m + carry, isLast = j === 0, cIn = carry;
+          const write = isLast ? String(prod) : String(prod % 10), out = isLast ? 0 : Math.floor(prod / 10);
+          steps.push({ el: at(rr, col),
+            done: () => isLast ? [...write].every((ch, i) => (at(rr, col - write.length + 1 + i) || {}).value === ch) : at(rr, col).value === write,
+            hints: [`${d} × ${m}${cIn ? `, then add the ${cIn} you carried` : ""}. ${isLast ? "This is the last digit, so write the whole answer." : "Write the ones digit here."}`,
+              `${d} × ${m} = ${d * m}${cIn ? `, plus ${cIn} is ${prod}` : ""}. ${isLast ? `Write ${prod}.` : out ? `Write the ${write} and carry the ${out}.` : `Write ${write}.`}`,
+              `Write ${write} in this box${out ? ` and a little ${out} in the carry box above the ${sa[j - 1]}` : ""}.`] });
+          if (out) {
+            const cc = aCol(j - 1);
+            steps.push({ el: at(carryRow, cc), done: () => at(carryRow, cc).value === String(out),
+              hints: [`${d} × ${m}${cIn ? ` + ${cIn}` : ""} is ${prod}. You wrote the ${write}. Where does the ${out} go?`, `Write a little ${out} in the carry box above the ${sa[j - 1]}, in the ×${m} carry row.`] });
+          }
+          carry = out;
+        }
+        return steps;
+      };
+      // add the two product rows, column by column from the right
+      const addSteps = () => {
+        const steps = [], s1 = String(r1), s2 = String(r2), st = String(tot);
+        const digitAt = (str, c) => { const i = c - (n - str.length); return i >= 0 ? +str[i] : 0; };
+        let carry = 0;
+        for (let c = last; c >= n - st.length; c--) {
+          const d1 = digitAt(s1, c), d2 = digitAt(s2, c), sum = d1 + d2 + carry, isLast = c === n - st.length, cIn = carry;
+          const write = isLast ? String(sum) : String(sum % 10), out = isLast ? 0 : Math.floor(sum / 10);
+          steps.push({ el: at(2, c), done: () => at(2, c).value === write,
+            hints: [`Now add the two rows. This column: ${d1} + ${d2}${cIn ? ` + the ${cIn} you carried` : ""}.`,
+              `${d1} + ${d2}${cIn ? ` + ${cIn}` : ""} = ${sum}. ${out ? `Write the ${write} and carry the ${out}.` : `Write ${write}.`}`,
+              `Write ${write} in this box${out ? ` and a little ${out} in the + carry box above the next column` : ""}.`] });
+          if (out) steps.push({ el: at("c3", c - 1), done: () => at("c3", c - 1).value === String(out),
+            hints: [`${d1} + ${d2}${cIn ? ` + ${cIn}` : ""} is ${sum}. Where does the ${out} go?`, `Write a little ${out} in the + carry box above the next column to the left.`] });
+          carry = out;
+        }
+        return steps;
+      };
+      const steps = [...mulSteps(ones, 0, 0, "c1"), ...mulSteps(td, 1, 1, "c2"), ...addSteps()];
+      if (dec) steps.push({ el: decInp, done: () => same(parseAns(decInp.value), val([tot, k])),
+        hints: [`Count the decimal places in ${fmt(A)} and in ${fmt(B)}, then add them.`,
+          `${fmt(A)} has ${places(da)} and ${fmt(B)} has ${places(db)}, so ${places(k)} in all. Start at the right end of ${fmt(W(tot))} and count ${places(k)} to the left.`,
+          `${fmt(A)} × ${fmt(B)} = ${fmt([tot, k])}.`] });
+      this.steps = () => steps;
+
+      this.check = () => {
+        const want = [String(r1), String(r2), String(tot)];
+        const got = [0, 1, 2].map(r => rowValue(box, r));
+        if (!got[2]) { api.msg("Write your answer in the bottom row."); return false; }
+        const ok = got.map((g, i) => g === want[i]);
+        ok.forEach((o, i) => markRow(box, i, o));
+        let dOk = true;
+        if (dec) {
+          dOk = decInp.value.trim() !== "" && same(parseAns(decInp.value), val([tot, k]));
+          decInp.classList.remove("right", "wrong"); void decInp.offsetWidth; decInp.classList.add(dOk ? "right" : "wrong");
+        }
+        if (ok.every(Boolean) && dOk) { api.msg(""); return true; }
+        api.msg(!ok[0] ? `Check the ${a} × ${ones} row.` : !ok[1] ? `Check the ${a} × ${tens} row. Remember the 0 at the end.` : !ok[2] ? "The two rows are right. Check your adding." : "The multiplying is right. Check where the decimal goes.");
+        return false;
+      };
+    }
   };
 }
 
@@ -616,6 +678,31 @@ function divLayout(N, d) {
   return { quot, rows, steps };
 }
 
+// Typing in a digit grid: one digit per box, move to the next box (dir: 1 right, -1 left), arrows, backspace, Enter checks.
+function wireGrid(box, at, dir, onClick) {
+  box.querySelectorAll("input.dg").forEach(el => {
+    const r = el.dataset.r, c = +el.dataset.c, rn = +r;
+    el.addEventListener("input", () => {
+      const v = el.value.replace(/\D/g, "").slice(-1);
+      el.value = v; el.classList.remove("brought", "right", "wrong", "hintfocus");
+      if (v && !el.classList.contains("cy")) { const nx = at(r, c + dir); if (nx) nx.focus(); }
+    });
+    el.addEventListener("keydown", e => {
+      const move = { ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0] }[e.key];
+      if (move && !isNaN(rn)) { const t = at(rn + move[0], c + move[1]); if (t) { e.preventDefault(); t.focus(); } }
+      else if (move) { const t = at(r, c + move[1]); if (t) { e.preventDefault(); t.focus(); } }
+      else if (e.key === "Backspace" && !el.value) { const t = at(r, c - dir); if (t) { e.preventDefault(); t.value = ""; t.focus(); } }
+      else if (e.key === "Enter") { e.preventDefault(); check(); }
+    });
+    if (onClick) el.addEventListener("click", () => onClick(el, rn, c));
+  });
+}
+// digits typed in one grid row, joined, without leading zeros
+const rowValue = (box, r) => [...box.querySelectorAll(`input.dg[data-r="${r}"]`)].map(el => el.value).join("").replace(/^0+(?=\d)/, "");
+function markRow(box, r, ok) {
+  box.querySelectorAll(`input.dg[data-r="${r}"]`).forEach(el => { el.classList.remove("right", "wrong"); if (el.value) { void el.offsetWidth; el.classList.add(ok ? "right" : "wrong"); } });
+}
+
 function genDiv() {
   const two = Math.random() < 0.4;
   const d = two ? R(11, 29) : R(3, 9);
@@ -650,21 +737,7 @@ function genDiv() {
       const put = (el, digit) => { el.value = digit; el.classList.add("brought"); el.classList.remove("right", "wrong"); };
       const clearSel = () => { sel = null; box.querySelectorAll(".dd.sel").forEach(x => x.classList.remove("sel")); };
 
-      cells.forEach(el => {
-        const r = +el.dataset.r, c = +el.dataset.c;
-        el.addEventListener("input", () => {
-          const v = el.value.replace(/\D/g, "").slice(-1);
-          el.value = v; el.classList.remove("brought", "right", "wrong");
-          if (v) { const nx = at(r, c + 1); if (nx) nx.focus(); }
-        });
-        el.addEventListener("keydown", e => {
-          const move = { ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0] }[e.key];
-          if (move) { const t = at(r + move[0], c + move[1]); if (t) { e.preventDefault(); t.focus(); } }
-          else if (e.key === "Backspace" && !el.value) { const t = at(r, c - 1); if (t) { e.preventDefault(); t.value = ""; t.focus(); } }
-          else if (e.key === "Enter") { e.preventDefault(); check(); }
-        });
-        el.addEventListener("click", () => { if (sel !== null && r >= 0 && !done) { put(el, sel); clearSel(); } });
-      });
+      wireGrid(box, at, 1, (el, r) => { if (sel !== null && r >= 0 && !done) { put(el, sel); clearSel(); } });
 
       // drag a dividend digit down (or tap it, then tap a box)
       box.querySelectorAll(".dd").forEach(dd => {
@@ -1076,7 +1149,7 @@ function nextQuestion() {
     el.addEventListener("input", () => el.classList.remove("wrong", "right"));
   });
   box.querySelectorAll("input").forEach(el => el.addEventListener("input", () => el.classList.remove("hintfocus")));
-  const first = firstDigit || inputs[0];
+  const first = (cur.focus && box.querySelector(cur.focus)) || firstDigit || inputs[0];
   if (first && matchMedia("(pointer: fine)").matches) first.focus();
   if (autoRead) speak(questionText());
 }
