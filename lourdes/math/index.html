@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lourdes Math</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --board: #2E4A3B;
+  --board-dark: #243B2F;
+  --frame: #9A6A3C;
+  --chalk: #F1F2EA;
+  --chalk-dim: rgba(241,242,234,.6);
+  --chalk-faint: rgba(241,242,234,.25);
+  --yellow: #F7D46A;
+  --pink: #F3A3B5;
+  --blue: #A6D8EA;
+  --tile: #FFF8E1;
+  --tile-ink: #2A2A2A;
+  --bg: #6B4726;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #3E2915; --frame: #7A5230; }
+}
+:root[data-theme="dark"] { --bg: #3E2915; --frame: #7A5230; }
+
+:root {
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+*, *::before, *::after { box-sizing: inherit; }
+html { height: 100%; }
+body {
+  margin: 0; min-height: 100%;
+  background: var(--bg);
+  font-family: "Andika", "Comic Sans MS", "Trebuchet MS", sans-serif;
+  color: var(--chalk);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 16px;
+  -webkit-tap-highlight-color: transparent;
+}
+.board {
+  width: 100%; max-width: 680px;
+  background: radial-gradient(ellipse at 30% 20%, #35553F 0%, var(--board) 55%, var(--board-dark) 100%);
+  border: 14px solid var(--frame);
+  border-radius: 10px;
+  box-shadow: inset 0 0 40px rgba(0,0,0,.35), 0 8px 0 rgba(0,0,0,.25);
+  padding: 22px 16px 20px;
+  text-align: center;
+}
+h1 { margin: 0 0 4px; font-size: 1.7rem; color: var(--yellow); }
+h2 { margin: 0 0 8px; font-size: 1.25rem; color: var(--yellow); }
+.sub { margin: 0 0 20px; color: var(--chalk-dim); }
+.hidden { display: none !important; }
+
+.menu-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.btn {
+  font-family: inherit; font-size: 1.1rem; font-weight: 700;
+  padding: 12px 20px; border-radius: 999px; border: 3px solid var(--chalk);
+  background: transparent; color: var(--chalk); cursor: pointer;
+  touch-action: manipulation;
+}
+.btn.main { background: var(--yellow); border-color: var(--yellow); color: #3A2A00; }
+.btn.small { font-size: .95rem; padding: 8px 16px; border-width: 2px; color: var(--chalk-dim); border-color: var(--chalk-dim); }
+.btn.tiny { font-size: 1rem; padding: 5px 10px; border-width: 2px; line-height: 1; }
+.btn:active { transform: scale(.97); }
+.btn.menu { border-radius: 16px; text-align: left; padding: 14px 16px; font-size: 1.15rem; }
+.btn.menu span { display: block; font-size: .9rem; font-weight: 400; margin-top: 4px; opacity: .85; }
+.btn:focus-visible, .choice:focus-visible, input:focus-visible, .ntile:focus-visible { outline: 4px solid var(--yellow); outline-offset: 3px; }
+.row { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.toggle { margin-top: 18px; }
+a.home { color: var(--chalk-dim); font-size: .95rem; }
+
+.stars { display: flex; justify-content: center; gap: 6px; margin: 4px 0 14px; flex-wrap: wrap; }
+.star { font-size: 1.3rem; color: var(--chalk-faint); }
+.star.done { color: var(--yellow); }
+.star.helped { color: var(--blue); }
+.star.current { color: var(--chalk); text-decoration: underline; text-underline-offset: 6px; }
+
+.qhead { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.qhead h2 { margin: 0; }
+.prompt { font-size: 1.2rem; margin: 0 0 14px; line-height: 1.5; }
+.big { font-size: clamp(1.8rem, 8vw, 2.6rem); font-weight: 700; margin: 8px 0 14px; }
+.cheer { font-size: 1.4rem; color: var(--yellow); min-height: 1.5em; margin: 12px 0 0; }
+.msg { color: var(--pink); min-height: 1.4em; margin: 10px 0 0; }
+.explain {
+  text-align: left; background: rgba(0,0,0,.18); border-radius: 10px;
+  padding: 12px 14px; margin-top: 12px; line-height: 1.6; font-size: 1.05rem;
+}
+.explain .row { margin-top: 8px; }
+.hintbox {
+  display: flex; gap: 10px; align-items: flex-start; text-align: left;
+  background: rgba(247,212,106,.12); border: 2px dashed var(--yellow); border-radius: 10px;
+  padding: 10px 12px; margin: 12px auto 0; max-width: 520px;
+}
+.hintbox .hintlab { font-size: .78rem; color: var(--yellow); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+.hintbox .hinttext { font-size: 1.1rem; line-height: 1.5; flex: 1; }
+.hintfocus { outline: 4px solid var(--yellow) !important; outline-offset: 3px; }
+
+input.ans {
+  font-family: inherit; font-size: 1.4rem; font-weight: 700;
+  background: var(--tile); color: var(--tile-ink);
+  border: 3px solid transparent; border-radius: 10px;
+  padding: 6px 8px; text-align: center; min-width: 3.5ch; max-width: 100%;
+}
+input.ans.right { background: var(--yellow); }
+input.ans.wrong { background: var(--pink); animation: shake .35s; }
+
+/* column addition and subtraction */
+.col { display: inline-grid; grid-template-columns: 2.2rem repeat(3, 3.2rem); gap: 4px 6px; margin: 6px auto 10px; align-items: center; }
+.col .d { font-family: "Courier New", monospace; font-size: 2.2rem; font-weight: 700; text-align: center; }
+.col .d.sign { color: var(--chalk-dim); }
+.col .bar { grid-column: 2 / -1; border-top: 3px solid var(--chalk); margin: 2px 0; }
+.col input.ans { width: 100%; min-width: 0; padding: 4px 2px; font-family: "Courier New", monospace; font-size: 1.8rem; }
+.col input.ans.cy { font-size: 1rem; height: 1.8rem; padding: 0; background: rgba(255,255,255,.1); color: var(--yellow); }
+.col .lab { grid-column: 2 / -1; font-size: .78rem; color: var(--chalk-dim); display: grid; grid-template-columns: repeat(3, 3.2rem); gap: 6px; }
+.col .lab span { text-align: center; }
+.col .strike { position: relative; color: var(--chalk-dim); }
+.col .strike::after { content: ""; position: absolute; left: 15%; right: 15%; top: 50%; border-top: 3px solid var(--pink); transform: rotate(-20deg); }
+
+/* base ten blocks */
+.blocks { display: flex; flex-wrap: wrap; gap: 14px 18px; justify-content: center; align-items: flex-end; margin: 8px auto 14px; max-width: 520px; }
+.bgroup { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-end; justify-content: center; max-width: 100%; }
+.hund {
+  width: 64px; height: 64px; border: 2px solid var(--yellow); border-radius: 3px;
+  background-color: rgba(247,212,106,.25);
+  background-image: linear-gradient(rgba(0,0,0,.25) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,.25) 1px, transparent 1px);
+  background-size: 10% 10%;
+}
+.ten { width: 13px; height: 64px; border: 2px solid var(--blue); border-radius: 2px; background-color: rgba(166,216,234,.3);
+  background-image: linear-gradient(rgba(0,0,0,.25) 1px, transparent 1px); background-size: 100% 10%; }
+.one { width: 13px; height: 13px; border: 2px solid var(--pink); border-radius: 2px; background-color: rgba(243,163,181,.35); }
+.ones-wrap { display: grid; grid-template-columns: repeat(5, 13px); gap: 4px; }
+.blab { width: 100%; font-size: .8rem; color: var(--chalk-dim); text-align: center; }
+.hiY { color: var(--yellow); } .hiB { color: var(--blue); } .hiP { color: var(--pink); }
+
+/* multiple choice */
+.choices { display: flex; flex-direction: column; gap: 10px; align-items: center; margin: 6px 0; }
+.choices.rowwise { flex-direction: row; justify-content: center; flex-wrap: wrap; }
+.choice {
+  width: 100%; max-width: 480px;
+  background: var(--tile); color: var(--tile-ink);
+  border: none; border-radius: 14px;
+  font-family: inherit; font-size: 1.2rem; font-weight: 700; line-height: 1.4;
+  padding: 12px 14px; box-shadow: 0 5px 0 #C9B98A;
+  cursor: pointer; touch-action: manipulation;
+}
+.choice.num { font-size: 1.7rem; max-width: 300px; }
+.choice.sym { width: 5rem; font-size: 2.2rem; padding: 8px 0; }
+.choice.right { background: var(--yellow); box-shadow: 0 5px 0 #C2A03F; }
+.choice.wrong { background: var(--pink); animation: shake .35s; }
+.choice.fade { opacity: .45; }
+.choice:disabled { cursor: default; }
+
+/* chains */
+.chain { display: flex; justify-content: center; align-items: center; gap: 6px; flex-wrap: wrap; font-size: clamp(1.6rem, 7vw, 2.2rem); font-weight: 700; margin: 10px 0 14px; }
+.gap {
+  width: 3rem; height: 3rem; border-radius: 10px; border: 3px dashed var(--chalk-dim);
+  background: transparent; color: var(--yellow); font-family: inherit; font-size: 2rem; font-weight: 700; cursor: pointer; touch-action: manipulation;
+}
+.gap.set { border-style: solid; border-color: var(--yellow); }
+.gap.right { background: var(--yellow); color: var(--tile-ink); }
+.gap.wrong { background: var(--pink); color: var(--tile-ink); animation: shake .35s; }
+.gap.fixed { border: none; background: transparent; color: var(--yellow); cursor: default; }
+.ntiles { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.ntile {
+  min-width: 4.4rem; padding: 10px 12px; background: var(--tile); color: var(--tile-ink);
+  border: none; border-radius: 12px; font-family: inherit; font-size: 1.8rem; font-weight: 700;
+  box-shadow: 0 5px 0 #C9B98A; cursor: pointer; touch-action: manipulation;
+}
+.ntile.used { visibility: hidden; }
+.ntile.wrong { background: var(--pink); animation: shake .35s; }
+.chain .slot { min-width: 4rem; padding: 4px 8px; border-bottom: 4px solid var(--chalk-dim); min-height: 2.6rem; }
+.chain .slot.next { border-bottom-color: var(--yellow); }
+
+.final-list { list-style: none; padding: 0; margin: 10px auto 16px; font-size: 1.3rem; line-height: 1.8; }
+
+@keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }
+@media (prefers-reduced-motion: reduce) { input.ans.wrong, .choice.wrong, .gap.wrong, .ntile.wrong { animation: none; } }
+</style>
+</head>
+<body>
+<main class="board">
+  <h1>Lourdes Math</h1>
+
+  <section id="menu">
+    <p class="sub">Adding, subtracting, place value, and greater or less. New numbers every time.</p>
+    <div class="menu-grid">
+      <button class="btn main menu" data-mode="addsub">➕➖ Add and subtract<span>Two-digit numbers, with carrying and borrowing</span></button>
+      <button class="btn menu" data-mode="place">🧱 Hundreds, tens, ones<span>Blocks, place value, expanded form</span></button>
+      <button class="btn menu" data-mode="compare">🐊 Greater or less<span>Compare numbers and build chains</span></button>
+      <button class="btn menu" data-mode="mix">🎲 Mix it up<span>A little of everything</span></button>
+    </div>
+    <div class="row toggle"><button class="btn small" id="autoBtn">🔊 Read questions aloud: on</button></div>
+    <div class="row"><a class="home" href="../">Back to Lourdes</a></div>
+  </section>
+
+  <section id="game" class="hidden">
+    <div class="stars" id="stars"></div>
+    <div class="qhead"><h2 id="qTitle"></h2><button class="btn tiny" id="readBtn" aria-label="Read the question aloud" title="Read it to me">🔊</button></div>
+    <div id="qbox"></div>
+    <div class="hintbox hidden" id="hintBox">
+      <div class="hinttext"><div class="hintlab" id="hintLab"></div><div id="hintText"></div></div>
+      <button class="btn tiny" id="hintReplay" aria-label="Say the hint again" title="Say it again">🔊</button>
+    </div>
+    <p class="msg" id="msg"></p>
+    <p class="cheer" id="cheer"></p>
+    <div class="explain hidden" id="explain"></div>
+    <div class="row" id="actRow">
+      <button class="btn main" id="checkBtn">Check</button>
+      <button class="btn" id="hintBtn">💡 Hint</button>
+    </div>
+    <div class="row hidden" id="nextRow"><button class="btn main" id="nextBtn">Next</button></div>
+    <div class="row"><button class="btn small back">Back to menu</button></div>
+  </section>
+
+  <section id="finish" class="hidden">
+    <div class="big">🎉</div>
+    <p class="cheer" id="finalMsg"></p>
+    <ul class="final-list" id="finalList"></ul>
+    <div class="row">
+      <button class="btn main" id="againBtn">Play again</button>
+      <button class="btn back">Back to menu</button>
+    </div>
+  </section>
+</main>
+
+<script>
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const R = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const CHEERS = ["Great job!", "You got it!", "Math star!", "Awesome!", "Nailed it!", "Way to go!", "Smart thinking!"];
+const ONES = ["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+const digits = n => ({ h: Math.floor(n / 100), t: Math.floor(n / 10) % 10, o: n % 10 });
+function parseAns(s) { s = String(s).replace(/[,\s]/g, ""); return /^\d+$/.test(s) ? +s : NaN; }
+const inp = (ans, width = 4, extra = "") => `<input class="ans" type="text" inputmode="numeric" autocomplete="off" data-ans="${ans}" style="width:${width + 1.5}ch" ${extra}>`;
+
+/* ---------- speech ---------- */
+const strip = h => String(h).replace(/<br\s*\/?>/gi, ". ").replace(/<li>/gi, " ").replace(/<\/li>/gi, ". ").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+function speakable(t) {
+  return strip(t)
+    .replace(/×/g, " times ").replace(/÷/g, " divided by ").replace(/−/g, " minus ").replace(/\+/g, " plus ")
+    .replace(/</g, " is less than ").replace(/>/g, " is greater than ")
+    .replace(/\s*=\s*/g, " equals ")
+    .replace(/\.\s*\./g, ".").replace(/\s+/g, " ").trim();
+}
+function speak(t) {
+  try {
+    if (!("speechSynthesis" in window)) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(speakable(t));
+    u.rate = 0.9; u.lang = "en-US";
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
+const hush = () => { try { speechSynthesis.cancel(); } catch (e) {} };
+
+/* ---------- shared pieces ---------- */
+function mcSetup(box, api, wrongMsg = "Not that one. Try again.") {
+  const btns = [...box.querySelectorAll(".choices .choice")];
+  btns.forEach(btn => btn.addEventListener("click", () => {
+    if (btn.disabled) return;
+    if (btn.dataset.ok) {
+      btn.classList.add("right");
+      btns.forEach(c => { c.disabled = true; if (c !== btn) c.classList.add("fade"); });
+      api.msg(""); api.solved();
+    } else {
+      api.helped();
+      btn.classList.remove("wrong"); void btn.offsetWidth; btn.classList.add("wrong");
+      api.msg(wrongMsg);
+    }
+  }));
+}
+const mcSteps = (box, hints) => () => [{ hints, done: () => !!box.querySelector(".choice.right") }];
+const choicesHtml = (list, cls = "num") => `<div class="choices${cls === "sym" ? " rowwise" : ""}">${shuffle(list).map(([t, ok]) => `<button class="choice ${cls}"${ok ? ' data-ok="1"' : ""}>${t}</button>`).join("")}</div>`;
+
+// why a is bigger or smaller than b, in words a 2nd grader uses
+function compareWhy(a, b) {
+  if (a === b) return `${a} and ${b} are exactly the same, so they are equal.`;
+  const A = digits(a), B = digits(b);
+  const [big, small] = a > b ? [a, b] : [b, a];
+  if (A.h !== B.h) return `Look at the hundreds first. ${big} has more hundreds, so ${big} is bigger.`;
+  if (A.t !== B.t) return `${A.h ? "The hundreds match, so look at the tens." : "Look at the tens first."} ${a} has ${plural(A.t, "ten")} and ${b} has ${plural(B.t, "ten")}, so ${big} is bigger.`;
+  return `The tens are the same (${plural(A.t, "ten")} each), so look at the ones. ${a} has ${A.o} and ${b} has ${B.o}, so ${big} is bigger.`;
+}
+const sym = (a, b) => a < b ? "<" : a > b ? ">" : "=";
+const MOUTH = "The open side of the sign always faces the bigger number, like a hungry alligator.";
+
+/* ---------- game 1: add and subtract ---------- */
+function genAddSub() {
+  const sub = Math.random() < 0.5;
+  let a, b;
+  if (sub) { a = R(20, 99); b = R(10, a - 1); }
+  else { a = R(10, 89); b = R(10, 99 - 10); if (Math.random() < 0.3) b = R(10, 99); }
+  const A = digits(a), B = digits(b), ans = sub ? a - b : a + b, S = digits(ans);
+  const q = `${a} ${sub ? "−" : "+"} ${b}`;
+  const cell = (cls, ans, extra = "") => `<input class="ans ${cls}" type="text" inputmode="numeric" autocomplete="off" maxlength="2" data-ans="${ans}" ${extra}>`;
+  let topRow, hints, explain;
+
+  if (!sub) {
+    const carry = A.o + B.o >= 10 ? 1 : 0, tensSum = A.t + B.t + carry;
+    topRow = `<span></span><span></span>${carry ? cell("cy", 1, 'aria-label="carry"') : "<span></span>"}<span></span>`;
+    hints = { carry, tensSum };
+    explain = `Ones: ${A.o} + ${B.o} = ${A.o + B.o}.${carry ? ` Write ${(A.o + B.o) % 10}, carry 1.` : ""}<br>Tens: ${A.t} + ${B.t}${carry ? " + 1" : ""} = ${tensSum}.<br><b>${q} = ${ans}</b>`;
+  } else {
+    const borrow = A.o < B.o;
+    topRow = borrow
+      ? `<span></span><span></span>${cell("cy", A.t - 1, 'aria-label="new tens"')}${cell("cy", A.o + 10, 'aria-label="new ones"')}`
+      : `<span></span><span></span><span></span><span></span>`;
+    hints = { borrow };
+    explain = borrow
+      ? `${A.o} is smaller than ${B.o}, so borrow a ten: the ${A.t} becomes ${A.t - 1} and the ${A.o} becomes ${A.o + 10}.<br>Ones: ${A.o + 10} − ${B.o} = ${S.o}. Tens: ${A.t - 1} − ${B.t} = ${S.t}.<br><b>${q} = ${ans}</b>`
+      : `Ones: ${A.o} − ${B.o} = ${S.o}. Tens: ${A.t} − ${B.t} = ${S.t}.<br><b>${q} = ${ans}</b>`;
+  }
+
+  const html = `<div class="big">${q}</div>
+    <div class="col">
+      ${topRow}
+      <span></span><span></span><span class="d${sub && hints.borrow ? " strike" : ""}">${A.t}</span><span class="d${sub && hints.borrow ? " strike" : ""}">${A.o}</span>
+      <span class="d sign">${sub ? "−" : "+"}</span><span></span><span class="d">${B.t}</span><span class="d">${B.o}</span>
+      <div class="bar"></div>
+      <span></span>${S.h ? cell("h", S.h, 'aria-label="hundreds"') : "<span></span>"}${cell("t", S.t, 'aria-label="tens"')}${cell("o", S.o, 'aria-label="ones"')}
+      <div class="lab"><span>hundreds</span><span>tens</span><span>ones</span></div>
+    </div>`;
+
+  return {
+    title: sub ? "➖ Subtract" : "➕ Add",
+    html,
+    say: `${q}. ${sub ? "Start with the ones. If you cannot take away, borrow a ten." : "Add the ones first, then the tens."}`,
+    explain,
+    setup(box, api) {
+      const el = cls => box.querySelector(`input.${cls}`);
+      const val = cls => { const e = el(cls); return e ? e.value.trim() : ""; };
+      const okDigit = (cls, want) => val(cls) === String(want) || (want === 0 && cls !== "o" && val(cls) === "");
+      box.querySelectorAll("input.ans").forEach(e => e.addEventListener("input", () => { e.value = e.value.replace(/\D/g, "").slice(-2); e.classList.remove("wrong", "right"); }));
+      const steps = [];
+      if (!sub) {
+        const { carry, tensSum } = hints, oSum = A.o + B.o;
+        steps.push({ el: el("o"), done: () => okDigit("o", S.o), hints: [
+          `Start with the ones column: ${A.o} + ${B.o}.`,
+          `${A.o} + ${B.o} = ${oSum}.${carry ? ` That is more than 9, so write only the ${oSum % 10} in the ones box, and carry the 1 ten.` : ` Write ${oSum} in the ones box.`}`,
+          `Write ${S.o} in the ones box.`] });
+        if (carry) steps.push({ el: el("cy"), done: () => val("cy") === "1", hints: [
+          `${A.o} + ${B.o} is ${oSum}. That is 1 ten and ${oSum % 10} ones. Where does the ten go?`,
+          `Write a little 1 in the box above the tens column. That is the carry.`] });
+        steps.push({ el: el("t"), done: () => okDigit("t", S.t) && (!S.h || okDigit("h", S.h)), hints: [
+          `Now the tens column: ${A.t} + ${B.t}${carry ? " + the 1 you carried" : ""}.`,
+          `${A.t} + ${B.t}${carry ? " + 1" : ""} = ${tensSum}.${S.h ? ` That is ${tensSum} tens, which is 1 hundred and ${tensSum % 10} tens. Write ${tensSum % 10} in the tens box and 1 in the hundreds box.` : ` Write ${tensSum} in the tens box.`}`,
+          `Write ${S.t} in the tens box${S.h ? " and 1 in the hundreds box" : ""}.`] });
+      } else {
+        const { borrow } = hints, o = borrow ? A.o + 10 : A.o, t = borrow ? A.t - 1 : A.t;
+        if (borrow) steps.push({ el: el("cy"), done: () => val("cy") === String(A.t - 1) && box.querySelectorAll("input.cy")[1].value.trim() === String(A.o + 10), hints: [
+          `Look at the ones: ${A.o} − ${B.o}. Can you take ${B.o} away from ${A.o}?`,
+          `No, ${A.o} is too small. Borrow 1 ten from the ${A.t}. The ${A.t} becomes ${A.t - 1}, and the ${A.o} becomes ${A.o + 10}.`,
+          `Write ${A.t - 1} in the small box above the ${A.t}, and ${A.o + 10} in the small box above the ${A.o}.`] });
+        steps.push({ el: el("o"), done: () => okDigit("o", S.o), hints: [
+          `${borrow ? "Now" : "Start with"} the ones: ${o} − ${B.o}.`,
+          `${o} − ${B.o} = ${S.o}. Write it in the ones box.`,
+          `Write ${S.o} in the ones box.`] });
+        steps.push({ el: el("t"), done: () => okDigit("t", S.t) && (S.t !== 0 || val("o") !== ""), hints: [
+          `Now the tens: ${t} − ${B.t}.`,
+          `${t} − ${B.t} = ${S.t}. Write it in the tens box.${S.t === 0 ? " A 0 in the tens can stay blank." : ""}`,
+          `Write ${S.t} in the tens box.`] });
+      }
+      this.steps = () => steps;
+      this.check = () => {
+        const h = val("h"), t = val("t"), o = val("o");
+        if (o === "" && t === "") { api.msg("Write your answer in the boxes under the line."); return false; }
+        const got = parseAns((h || "0") + (t || "0") + (o || "0"));
+        const ok = got === ans;
+        ["h", "t", "o"].forEach(c => { const e = el(c); if (e) { e.classList.remove("right", "wrong"); void e.offsetWidth; e.classList.add(ok ? "right" : "wrong"); } });
+        api.msg(ok ? "" : `Not quite. Check the ${sub ? "ones first, then the tens" : "ones column, then the tens"}.`);
+        return ok;
+      };
+    }
+  };
+}
+
+/* ---------- game 2: hundreds, tens, ones ---------- */
+const PL = { h: "hundreds", t: "tens", o: "ones" };
+const PL1 = { h: "hundred", t: "ten", o: "one" };
+function blocksHtml(h, t, o) {
+  const hund = Array(h).fill('<span class="hund"></span>').join("");
+  const ten = Array(t).fill('<span class="ten"></span>').join("");
+  const one = Array(o).fill('<span class="one"></span>').join("");
+  return `<div class="blocks">
+    ${h ? `<div class="bgroup">${hund}<span class="blab">hundreds</span></div>` : ""}
+    ${t ? `<div class="bgroup">${ten}<span class="blab">tens</span></div>` : ""}
+    ${o ? `<div class="bgroup"><span class="ones-wrap">${one}</span><span class="blab">ones</span></div>` : ""}
+  </div>`;
+}
+function unitForm(h, t, o, scramble) {
+  const parts = [];
+  if (h) parts.push(["h", plural(h, PL1.h)]);
+  if (t) parts.push(["t", plural(t, PL1.t)]);
+  if (o) parts.push(["o", plural(o, PL1.o)]);
+  return (scramble ? shuffle(parts) : parts).map(p => p[1]);
+}
+function genPlace() {
+  const t = pick(["blocks", "blocks", "unit", "expanded", "toexpanded", "which", "worth", "howmany"]);
+  let n = R(101, 999);
+  const D = digits(n), h = D.h, tt = D.t, o = D.o;
+  const expanded = [h * 100, tt * 10, o].filter(v => v);
+
+  if (t === "blocks") {
+    const small = Math.random() < 0.3;
+    const H = small ? 0 : R(1, 4), T = small ? R(1, 9) : R(0, 9), O = R(0, 9);
+    const num = H * 100 + T * 10 + O;
+    const have = [[H, "hundred"], [T, "ten"], [O, "one"]].filter(x => x[0]);
+    return {
+      title: "🧱 Count the blocks",
+      html: `<p class="prompt">What number do the blocks show?</p>${blocksHtml(H, T, O)}<div class="big">${inp(num, 5)}</div>`,
+      say: `What number do the blocks show? Count the hundreds, then the tens, then the ones.`,
+      hints: [[`Count the big squares first. Each one is a hundred. Then the rods, each one is a ten. Then the little cubes, the ones.`,
+        `There are ${have.map(x => plural(x[0], x[1])).join(", ")}. That is ${[H * 100, T * 10, O].filter(v => v).join(" + ")}.`,
+        `The number is ${num}.`]],
+      explain: `${plural(H, "hundred")}, ${plural(T, "ten")}, ${plural(O, "one")} = <b>${num}</b>`
+    };
+  }
+  if (t === "unit") {
+    const parts = unitForm(h, tt, o, Math.random() < 0.5);
+    return {
+      title: "🧱 Make the number",
+      html: `<p class="prompt">Write the number:</p><div class="big" style="font-size:1.7rem">${parts.join(", ")}</div><div class="big">${inp(n, 5)}</div>`,
+      say: `Write the number: ${parts.join(", ")}.`,
+      hints: [[`Find the hundreds first, then the tens, then the ones. The order they are written in does not matter.`,
+        `${plural(h, "hundred")} goes first, then ${plural(tt, "ten")}, then ${plural(o, "one")}.${!tt || !o ? " Put a 0 in any place that has none." : ""}`,
+        `The number is ${n}.`]],
+      explain: `${h} hundreds, ${tt} tens, ${o} ones = <b>${n}</b>`
+    };
+  }
+  if (t === "expanded") {
+    return {
+      title: "🧱 Expanded form",
+      html: `<div class="big">${expanded.join(" + ")} = ${inp(n, 5)}</div>`,
+      hints: [[`Each number is one place: ${expanded.map(v => v >= 100 ? `${v} is the hundreds` : v >= 10 ? `${v} is the tens` : `${v} is the ones`).join(", ")}.`,
+        `Put the digits together: ${h} in the hundreds, ${tt} in the tens, ${o} in the ones.`,
+        `${expanded.join(" + ")} = ${n}.`]],
+      explain: `${expanded.join(" + ")} = <b>${n}</b>`
+    };
+  }
+  if (t === "toexpanded") {
+    while (digits(n).t === 0 || digits(n).o === 0) n = R(111, 999);
+    const d2 = digits(n);
+    return {
+      title: "🧱 Break it apart",
+      html: `<p class="prompt">Write ${n} in expanded form.</p>
+        <div class="big" style="font-size:1.9rem">${n} = ${inp(d2.h * 100, 3)} + ${inp(d2.t * 10, 2)} + ${inp(d2.o, 1)}</div>`,
+      say: `Write ${n} in expanded form: hundreds plus tens plus ones.`,
+      hints: [
+        [`The first box is the hundreds. What digit is in the hundreds place of ${n}?`, `The ${d2.h} is in the hundreds place, so it is worth ${d2.h} hundreds.`, `Write ${d2.h * 100} in the first box.`],
+        [`The middle box is the tens. What digit is in the tens place?`, `The ${d2.t} is in the tens place, so it is worth ${d2.t} tens.`, `Write ${d2.t * 10} in the middle box.`],
+        [`The last box is the ones.`, `The ${d2.o} is in the ones place. It is just worth ${d2.o}.`, `Write ${d2.o} in the last box.`]],
+      explain: `${n} = <b>${d2.h * 100} + ${d2.t * 10} + ${d2.o}</b>`
+    };
+  }
+  if (t === "which") {
+    const pl = pick(["h", "t", "o"]);
+    while (new Set(Object.values(digits(n))).size < 3) n = R(101, 999);
+    const d2 = digits(n), want = d2[pl];
+    const opts = [["h", d2.h], ["t", d2.t], ["o", d2.o]].map(([k, v]) => [String(v), k === pl]);
+    const colored = `<span class="${pl === "h" ? "hiY" : ""}">${d2.h}</span><span class="${pl === "t" ? "hiY" : ""}">${d2.t}</span><span class="${pl === "o" ? "hiY" : ""}">${d2.o}</span>`;
+    return {
+      title: "🧱 Which digit?",
+      html: `<p class="prompt">In <b>${n}</b>, which digit is in the <b>${PL[pl]}</b> place?</p>${choicesHtml(opts)}`,
+      hints: [[`Start from the right. The last digit is the ones, the middle is the tens, the first is the hundreds.`,
+        `The ${PL[pl]} place is the ${pl === "o" ? "last" : pl === "t" ? "middle" : "first"} digit.`,
+        `The digit in the ${PL[pl]} place is ${want}.`]],
+      explain: `${n}: ${d2.h} hundreds, ${d2.t} tens, ${d2.o} ones. The ${PL[pl]} digit is <b>${want}</b>.`,
+      mc: true
+    };
+  }
+  if (t === "worth") {
+    const pl = pick(["h", "t", "o"]);
+    while (new Set(Object.values(digits(n))).size < 3 || digits(n).t === 0 || digits(n).o === 0) n = R(111, 999);
+    const d2 = digits(n), g = d2[pl], want = pl === "h" ? g * 100 : pl === "t" ? g * 10 : g;
+    const opts = [[String(g), pl === "o"], [String(g * 10), pl === "t"], [String(g * 100), pl === "h"]];
+    return {
+      title: "🧱 What is it worth?",
+      html: `<p class="prompt">In <b>${n}</b>, what is the <b class="hiY">${g}</b> worth?</p>${choicesHtml(opts)}`,
+      hints: [[`Find which place the ${g} is in: hundreds, tens, or ones.`,
+        `The ${g} is in the ${PL[pl]} place. ${plural(g, PL1[pl])} is how much?`,
+        `${plural(g, PL1[pl])} is ${want}.`]],
+      explain: `The ${g} is in the ${PL[pl]} place, so it is worth <b>${want}</b>.`,
+      mc: true
+    };
+  }
+  // how many tens
+  const k = R(2, 9), hund = Math.random() < 0.4;
+  const num = hund ? k * 100 : k * 10, unit = hund ? "hundreds" : "tens";
+  return {
+    title: "🧱 How many?",
+    html: `<p class="prompt">How many <b>${unit}</b> make <b>${num}</b>?</p><div class="big">${inp(k, 2)}</div>`,
+    hints: [[`Count by ${hund ? "hundreds" : "tens"} until you get to ${num}: ${hund ? "100, 200, 300" : "10, 20, 30"} ...`,
+      `${num} is ${k} ${hund ? "hundreds" : "tens"} and 0 ones. Look at the first digit.`,
+      `${k} ${unit} make ${num}.`]],
+    explain: `${num} = ${plural(k, hund ? "hundred" : "ten")}. <b>${k}</b>`
+  };
+}
+
+/* ---------- game 3: greater than, less than ---------- */
+function compareHints(a, b) {
+  const s = sym(a, b);
+  return [`Which number is bigger? ${a === b ? "Or are they the same?" : `Look at the ${Math.max(a, b) >= 100 ? "hundreds" : "tens"} first.`}`, compareWhy(a, b), `${a} ${s} ${b}. ${MOUTH}`];
+}
+function randNum() { return Math.random() < 0.25 ? R(100, 999) : R(10, 99); }
+function closePair() {
+  const a = randNum(); const r = Math.random();
+  if (r < 0.1) return [a, a];
+  if (r < 0.5) { const b = Math.max(10, a - R(1, 9)); return [a, b]; }
+  return [a, randNum()];
+}
+function genCompare() {
+  const t = pick(["two", "two", "chain", "chain", "build"]);
+
+  if (t === "two") {
+    const [a, b] = closePair(), s = sym(a, b);
+    return {
+      title: "🐊 Which sign?",
+      html: `<div class="chain"><span>${a}</span><span class="gap fixed">?</span><span>${b}</span></div>
+        <p class="prompt">Pick the sign that makes it true.</p>${choicesHtml([["<", s === "<"], [">", s === ">"], ["=", s === "="]], "sym")}`,
+      say: `${a}, blank, ${b}. Is ${a} less than, greater than, or equal to ${b}?`,
+      hints: [compareHints(a, b)],
+      explain: `${compareWhy(a, b)}<br><b>${a} ${s} ${b}</b>. ${MOUTH}`,
+      mc: true,
+      wrongMsg: "Not that sign. Which number is bigger?"
+    };
+  }
+
+  if (t === "chain") {
+    const n = R(3, 4), nums = [];
+    while (nums.length < n) { const v = randNum(); if (!nums.some(x => Math.abs(x - v) > 400)) nums.push(v); }
+    const gaps = nums.slice(1).map((b, i) => sym(nums[i], b));
+    const chain = nums.map((v, i) => `<span>${v}</span>${i < n - 1 ? `<button class="gap" data-i="${i}" aria-label="sign ${i + 1}">?</button>` : ""}`).join("");
+    return {
+      title: "🐊 Fill the chain",
+      html: `<p class="prompt">Tap each box to change the sign until every one is true.</p><div class="chain">${chain}</div>`,
+      say: `Fill the chain: ${nums.join(", blank, ")}. Tap each box to pick less than, greater than, or equals.`,
+      explain: gaps.map((g, i) => `${nums[i]} ${g} ${nums[i + 1]}: ${compareWhy(nums[i], nums[i + 1])}`).join("<br>") + `<br><b>${nums.map((v, i) => v + (i < n - 1 ? " " + gaps[i] : "")).join(" ")}</b>`,
+      setup(box, api) {
+        const CYCLE = ["?", "<", ">", "="];
+        const btns = [...box.querySelectorAll(".gap")];
+        btns.forEach(b => b.addEventListener("click", () => {
+          if (done) return;
+          b.textContent = CYCLE[(CYCLE.indexOf(b.textContent) + 1) % CYCLE.length];
+          b.classList.toggle("set", b.textContent !== "?");
+          b.classList.remove("right", "wrong", "hintfocus"); api.msg("");
+        }));
+        this.steps = () => btns.map((b, i) => ({ el: b, done: () => b.textContent === gaps[i], hints: compareHints(nums[i], nums[i + 1]).map((h, k) => k === 0 ? `Look at ${nums[i]} and ${nums[i + 1]}. ${h}` : h) }));
+        this.check = () => {
+          if (btns.some(b => b.textContent === "?")) { api.msg("Pick a sign for every box first."); return false; }
+          let ok = true;
+          btns.forEach((b, i) => { const good = b.textContent === gaps[i]; b.classList.remove("right", "wrong"); void b.offsetWidth; b.classList.add(good ? "right" : "wrong"); if (!good) ok = false; });
+          api.msg(ok ? "" : "Not quite. Fix the pink signs.");
+          return ok;
+        };
+      }
+    };
+  }
+
+  // build: tap numbers from smallest to biggest (or biggest to smallest)
+  const n = 4, nums = [];
+  while (nums.length < n) { const v = randNum(); if (!nums.includes(v)) nums.push(v); }
+  const up = Math.random() < 0.65;
+  const order = nums.slice().sort((x, y) => up ? x - y : y - x);
+  const s = up ? "<" : ">";
+  return {
+    title: "🐊 Build the chain",
+    html: `<p class="prompt">Tap the numbers from <b>${up ? "smallest to biggest" : "biggest to smallest"}</b>.</p>
+      <div class="chain" id="slots">${order.map((_, i) => `<span class="slot${i === 0 ? " next" : ""}"></span>${i < n - 1 ? `<span class="gap fixed">${s}</span>` : ""}`).join("")}</div>
+      <div class="ntiles">${shuffle(nums).map(v => `<button class="ntile" data-v="${v}">${v}</button>`).join("")}</div>`,
+    say: `Tap the numbers from ${up ? "smallest to biggest" : "biggest to smallest"}: ${nums.join(", ")}.`,
+    explain: `In order: <b>${order.join(` ${s} `)}</b>`,
+    setup(box, api) {
+      let pos = 0;
+      const slots = [...box.querySelectorAll(".slot")], tiles = [...box.querySelectorAll(".ntile")];
+      tiles.forEach(tile => tile.addEventListener("click", () => {
+        if (done || tile.classList.contains("used")) return;
+        if (+tile.dataset.v === order[pos]) {
+          tile.classList.add("used"); slots[pos].textContent = tile.dataset.v; slots[pos].classList.remove("next");
+          pos++; api.msg("");
+          if (pos < n) slots[pos].classList.add("next"); else api.solved();
+        } else {
+          api.helped();
+          tile.classList.remove("wrong"); void tile.offsetWidth; tile.classList.add("wrong");
+          api.msg(`Not that one. Is there a ${up ? "smaller" : "bigger"} number left?`);
+        }
+      }));
+      this.steps = () => order.map((v, i) => {
+        const left = nums.filter(x => !order.slice(0, i).includes(x));
+        const nxt = order[i + 1];
+        return { done: () => pos > i, hints: [
+          `Which number is the ${up ? "smallest" : "biggest"} one left? Look at the ${left.some(x => x >= 100) ? "hundreds, then the tens" : "tens first"}.`,
+          nxt !== undefined ? `Compare ${v} with ${nxt}. ${compareWhy(v, nxt)} So ${v} comes first.` : `Only ${v} is left.`,
+          `Tap ${v} next.`] };
+      });
+    }
+  };
+}
+
+const GENS = { addsub: genAddSub, place: genPlace, compare: genCompare };
+const ROUND = { addsub: 6, place: 8, compare: 8, mix: 8 };
+const NAMES = { addsub: "problems", place: "place value problems", compare: "comparing problems", mix: "mixed problems" };
+
+/* ---------- game loop ---------- */
+let mode = null, idx = 0, results = [], helped = false, done = false, cur = null;
+let hintStep = -1, hintLevel = 0;
+let autoRead = true;
+try { autoRead = localStorage.getItem("lm_auto") !== "0"; } catch (e) {}
+function drawAuto() { $("autoBtn").textContent = `🔊 Read questions aloud: ${autoRead ? "on" : "off"}`; }
+
+function show(id) { hush(); ["menu", "game", "finish"].forEach(s => $(s).classList.toggle("hidden", s !== id)); }
+
+function drawStars() {
+  const s = $("stars"); s.innerHTML = "";
+  for (let i = 0; i < ROUND[mode]; i++) {
+    const el = document.createElement("span");
+    el.className = "star"; el.textContent = "★";
+    if (results[i] === "clean") el.classList.add("done");
+    else if (results[i] === "helped") el.classList.add("helped");
+    else if (i === idx) el.classList.add("current");
+    s.appendChild(el);
+  }
+}
+
+function startGame(m) { mode = m; idx = 0; results = []; nextQuestion(); }
+
+function nextQuestion() {
+  helped = false; done = false; hintStep = -1; hintLevel = 0;
+  const gen = mode === "mix" ? pick(Object.values(GENS)) : GENS[mode];
+  cur = gen();
+  show("game"); drawStars();
+  $("qTitle").textContent = cur.title;
+  const box = $("qbox");
+  box.innerHTML = cur.html;
+  $("msg").textContent = ""; $("cheer").textContent = "";
+  $("explain").classList.add("hidden"); $("explain").innerHTML = "";
+  $("hintBox").classList.add("hidden"); $("hintBtn").textContent = "💡 Hint";
+  $("actRow").classList.remove("hidden"); $("nextRow").classList.add("hidden");
+  const api = { helped: () => { helped = true; }, msg: t => { $("msg").textContent = t; }, solved };
+  if (cur.setup) cur.setup(box, api);
+  if (cur.mc) { mcSetup(box, api, cur.wrongMsg); cur.steps = mcSteps(box, cur.hints[0]); }
+  $("checkBtn").classList.toggle("hidden", (!!cur.setup || !!cur.mc) && !cur.check);
+  const inputs = [...box.querySelectorAll("input.ans")];
+  inputs.forEach((el, i) => {
+    el.addEventListener("keydown", e => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      const nextEmpty = inputs.slice(i + 1).find(x => !x.value);
+      if (nextEmpty) nextEmpty.focus(); else check();
+    });
+    el.addEventListener("input", () => el.classList.remove("wrong", "right", "hintfocus"));
+  });
+  const first = box.querySelector("input.o") || box.querySelector("input.ans");
+  if (first && matchMedia("(pointer: fine)").matches) first.focus();
+  if (autoRead) speak(questionText());
+}
+
+function questionText() {
+  if (cur.say) return cur.say;
+  const clone = $("qbox").cloneNode(true);
+  clone.querySelectorAll(".hidden, .blocks, .col, .lab").forEach(el => el.remove());
+  clone.querySelectorAll("input").forEach(el => el.replaceWith(" blank "));
+  const bits = [...clone.querySelectorAll(".prompt, .big")].map(el => el.textContent);
+  const ch = [...clone.querySelectorAll(".choice")].map(el => el.textContent);
+  if (ch.length) bits.push("Your choices are: " + ch.join(", or "));
+  return bits.join(". ");
+}
+
+function stepsFor() {
+  if (cur.steps) return cur.steps();
+  const inputs = [...$("qbox").querySelectorAll("input.ans")];
+  return inputs.map((el, i) => ({ el, hints: (cur.hints || [])[i] || ["Fill in this box."], done: () => parseAns(el.value) === +el.dataset.ans }));
+}
+
+function hint() {
+  if (done) return;
+  const steps = stepsFor();
+  const i = steps.findIndex(st => !st.done());
+  document.querySelectorAll(".hintfocus").forEach(el => el.classList.remove("hintfocus"));
+  if (i < 0) { showHint("Every step looks done. Press Check!", "All steps"); return; }
+  if (i !== hintStep) { hintStep = i; hintLevel = 0; }
+  const st = steps[i], lvl = Math.min(hintLevel, st.hints.length - 1);
+  if (lvl >= 1) helped = true;
+  let text = st.hints[lvl];
+  const filled = st.el && (st.el.tagName === "INPUT" ? st.el.value.trim() : st.el.textContent !== "?");
+  if (filled) text = "Look at this one again. " + text;
+  hintLevel++;
+  showHint(text, `Step ${i + 1} of ${steps.length}`);
+  $("hintBtn").textContent = "💡 Another hint";
+  if (st.el) {
+    st.el.classList.add("hintfocus");
+    st.el.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (st.el.tagName === "INPUT" && matchMedia("(pointer: fine)").matches) st.el.focus();
+  }
+}
+
+function showHint(text, label) {
+  $("hintLab").textContent = label;
+  $("hintText").innerHTML = text;
+  $("hintBox").classList.remove("hidden");
+  speak(text);
+}
+
+function check() {
+  if (done) return;
+  if (cur.check) { if (cur.check()) solved(); return; }
+  if (cur.setup || cur.mc) return;
+  const inputs = [...$("qbox").querySelectorAll("input.ans")];
+  let ok = true;
+  inputs.forEach(el => {
+    if (!el.value.trim()) { ok = false; el.classList.remove("right", "wrong"); return; }
+    const good = parseAns(el.value) === +el.dataset.ans;
+    el.classList.toggle("right", good);
+    el.classList.remove("wrong");
+    if (!good) { void el.offsetWidth; el.classList.add("wrong"); ok = false; }
+  });
+  if (ok) { $("msg").textContent = ""; solved(); }
+  else $("msg").textContent = inputs.some(el => el.classList.contains("wrong")) ? "Not quite. Fix the pink boxes." : "Fill in every box first.";
+}
+
+function solved() {
+  done = true;
+  results[idx] = helped ? "helped" : "clean";
+  $("qbox").querySelectorAll("input").forEach(el => { el.readOnly = true; el.classList.remove("hintfocus"); });
+  $("qbox").querySelectorAll(".gap, .ntile").forEach(el => { el.disabled = true; el.classList.remove("hintfocus"); });
+  $("hintBox").classList.add("hidden");
+  const cheer = pick(CHEERS);
+  $("cheer").textContent = cheer;
+  $("explain").innerHTML = cur.explain + `<div class="row"><button class="btn tiny" id="explainRead" aria-label="Read the explanation aloud">🔊 Read it to me</button></div>`;
+  $("explainRead").addEventListener("click", () => speak(cur.explain));
+  speak(cheer);
+  $("explain").classList.remove("hidden");
+  $("actRow").classList.add("hidden");
+  $("nextRow").classList.remove("hidden");
+  $("nextBtn").textContent = idx === ROUND[mode] - 1 ? "See my stars" : "Next";
+  drawStars();
+  $("nextBtn").focus();
+}
+
+function next() {
+  idx++;
+  if (idx >= ROUND[mode]) return showFinish();
+  nextQuestion();
+}
+
+function showFinish() {
+  show("finish");
+  const n = ROUND[mode], clean = results.filter(r => r === "clean").length;
+  $("finalMsg").textContent = clean === n ? `All ${n} ${NAMES[mode]} with no help. Amazing!` : `You finished all ${n} ${NAMES[mode]}! ${clean} with no help.`;
+  $("finalList").innerHTML = `<li>${"⭐".repeat(clean)}${"💙".repeat(n - clean)}</li>`;
+  speak(clean === n ? "All done, with no help. Amazing!" : "You finished! Great work.");
+}
+
+document.querySelectorAll("#menu [data-mode]").forEach(b => b.addEventListener("click", () => startGame(b.dataset.mode)));
+$("checkBtn").addEventListener("click", check);
+$("hintBtn").addEventListener("click", hint);
+$("hintReplay").addEventListener("click", () => speak($("hintText").innerHTML));
+$("readBtn").addEventListener("click", () => speak(questionText()));
+$("nextBtn").addEventListener("click", next);
+$("againBtn").addEventListener("click", () => startGame(mode));
+$("autoBtn").addEventListener("click", () => { autoRead = !autoRead; try { localStorage.setItem("lm_auto", autoRead ? "1" : "0"); } catch (e) {} drawAuto(); });
+document.querySelectorAll(".back").forEach(b => b.addEventListener("click", () => show("menu")));
+drawAuto();
+show("menu");
+</script>
+</body>
+</html>
