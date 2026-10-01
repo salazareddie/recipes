@@ -234,7 +234,7 @@ const $ = id => document.getElementById(id);
 const R = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 const pick = a => a[Math.floor(Math.random() * a.length)];
 const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-const CHEERS = ["Great job!", "You got it!", "Math star!", "Awesome!", "Nailed it!", "Way to go!", "Smart thinking!"];
+const CHEERS = ["Great job!", "You got it!", "Math star!", "Awesome!", "Nailed it!", "Way to go!", "Smart thinking!", "Slay, girl!", "Six seven!"];
 const ONES = ["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const digits = n => ({ h: Math.floor(n / 100), t: Math.floor(n / 10) % 10, o: n % 10 });
