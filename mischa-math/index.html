@@ -179,6 +179,18 @@ input.ans::placeholder { color: #B8AD8A; }
 .slide-row .btn:disabled { opacity: .35; }
 @media (prefers-reduced-motion: reduce) { .pvd { transition: none; } }
 
+/* times tables picker */
+.tables { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 10px 0 16px; }
+.tbtn {
+  width: 3.2rem; height: 3.2rem; border-radius: 12px; border: 3px solid var(--chalk-dim);
+  background: transparent; color: var(--chalk); font-family: inherit; font-size: 1.3rem; font-weight: 700; cursor: pointer; touch-action: manipulation;
+}
+.tbtn.on { background: var(--yellow); border-color: var(--yellow); color: #3A2A00; }
+.tbtn.all { width: auto; padding: 0 16px; }
+.streak { font-size: 1rem; color: var(--chalk-dim); min-height: 1.3em; margin: 0 0 6px; }
+.flashcard { font-size: clamp(2.6rem, 13vw, 4rem); font-weight: 700; margin: 14px 0 18px; letter-spacing: .04em; }
+.flashcard input.ans { font-size: inherit; width: 3.2ch; min-width: 0; padding: 2px 6px; }
+
 /* multiple choice */
 .choices { display: flex; flex-direction: column; gap: 10px; align-items: center; margin: 6px 0; }
 .choice {
@@ -223,6 +235,7 @@ input.ans::placeholder { color: #B8AD8A; }
     <p class="sub">Multiplying, dividing, decimals and standard form. New numbers every time.</p>
     <div class="menu-grid">
       <button class="btn main menu" data-mode="flash">⚡ Quick flash cards<span>Fast warm-ups: facts, tens, decimals</span></button>
+      <button class="btn menu" data-mode="times">✖️ Times tables<span>Pick your tables. 20 quick cards, with a timer</span></button>
       <button class="btn menu" data-mode="area">🟩 Area model<span>Break it into parts and add them up</span></button>
       <button class="btn menu" data-mode="std">✏️ Standard algorithm<span>Stack it and multiply, with decimals too</span></button>
       <button class="btn menu" data-mode="why">🔍 Where does the decimal go?<span>Use a product you know. How do you know?</span></button>
@@ -1095,9 +1108,77 @@ function genForm() {
   };
 }
 
-const GENS = { flash: genFlash, area: genArea, std: genStd, why: genWhy, div: genDiv, form: genForm, place: genPlace };
-const ROUND = { flash: 10, area: 5, std: 5, why: 6, div: 5, form: 8, place: 8, mix: 8 };
-const NAMES = { flash: "flash cards", area: "area models", std: "standard algorithm problems", why: "decimal puzzles", div: "long division problems", form: "standard form problems", place: "place value puzzles", mix: "mixed problems" };
+/* ---------- times tables ---------- */
+let timesTables = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+try { const t = JSON.parse(localStorage.getItem("mm_tables") || "null"); if (Array.isArray(t) && t.length) timesTables = t; } catch (e) {}
+let timesStart = 0, streak = 0, bestStreak = 0, lastFact = "";
+
+// a trick for remembering this fact, used as the middle hint
+function factTrick(x, y) {
+  if (y === 10 || x === 10) { const o = y === 10 ? x : y; return `Times 10 just adds a zero: ${o} becomes ${o * 10}.`; }
+  if (y === 11 && x <= 9) return `Times 11 doubles the digit: ${x} becomes ${x}${x}.`;
+  if (x === 11 && y <= 9) return `Times 11 doubles the digit: ${y} becomes ${y}${y}.`;
+  if (y === 9 || x === 9) { const o = y === 9 ? x : y; return `Times 9 is times 10 minus one group: ${o * 10} − ${o} = ${o * 9}.`; }
+  if (y === 5 || x === 5) { const o = y === 5 ? x : y; return `Times 5 is half of times 10: half of ${o * 10} is ${o * 5}.`; }
+  if (y === 2 || x === 2) { const o = y === 2 ? x : y; return `Times 2 is a double: ${o} + ${o} = ${o * 2}.`; }
+  if (y === 4 || x === 4) { const o = y === 4 ? x : y; return `Times 4 is double, then double again: ${o} → ${o * 2} → ${o * 4}.`; }
+  if (y === 3 || x === 3) { const o = y === 3 ? x : y; return `Times 3 is double plus one more: ${o * 2} + ${o} = ${o * 3}.`; }
+  if (y === 12 || x === 12) { const o = y === 12 ? x : y; return `Times 12 is times 10 plus times 2: ${o * 10} + ${o * 2} = ${o * 12}.`; }
+  if (x === y) return `${x} × ${x} is a square number. ${x} × ${x} = ${x * x}.`;
+  return `Start from a fact you know: ${x} × ${y - 1} = ${x * (y - 1)}, then add one more ${x}.`;
+}
+
+function genTimes() {
+  let x, y, key;
+  for (let t = 0; t < 20; t++) { x = pick(timesTables); y = R(2, 12); key = `${x}x${y}`; if (key !== lastFact) break; }
+  lastFact = key;
+  const flip = Math.random() < 0.4, [a, b] = flip ? [y, x] : [x, y], prod = x * y;
+  const missing = Math.random() < 0.2;
+  const trick = factTrick(a, b);
+  const html = missing
+    ? `<p class="streak" id="streak"></p><div class="flashcard">${a} × ${inp(W(b), 2)} = ${prod}</div>`
+    : `<p class="streak" id="streak"></p><div class="flashcard">${a} × ${b} = ${inp(W(prod), 3)}</div>`;
+  return {
+    title: "✖️ Times tables",
+    html,
+    say: missing ? `${a} times what equals ${prod}?` : `${a} times ${b}.`,
+    hints: [missing
+      ? [`${a} times what makes ${prod}? Count by ${a}s until you reach ${prod}.`, trick, `${a} × ${b} = ${prod}, so the missing number is ${b}.`]
+      : [`${a} × ${b} means ${a} groups of ${b}. Count by ${b}s, ${a} times.`, trick, `${a} × ${b} = ${prod}.`]],
+    explain: `<b>${a} × ${b} = ${prod}</b>. ${trick}`,
+    draw(box) { box.querySelector("#streak").textContent = streak >= 3 ? `🔥 ${streak} in a row` : ""; }
+  };
+}
+
+function showTablePicker() {
+  show("game"); drawStars();
+  $("stars").innerHTML = "";
+  $("qTitle").textContent = "✖️ Times tables";
+  $("msg").textContent = ""; $("cheer").textContent = "";
+  $("explain").classList.add("hidden"); $("hintBox").classList.add("hidden");
+  $("actRow").classList.add("hidden"); $("nextRow").classList.add("hidden");
+  const btn = n => `<button class="tbtn${timesTables.includes(n) ? " on" : ""}" data-t="${n}">${n}</button>`;
+  $("qbox").innerHTML = `<p class="prompt">Which tables do you want to practice?</p>
+    <div class="tables">${[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(btn).join("")}<button class="tbtn all" data-t="all">All</button></div>
+    <div class="row"><button class="btn main" id="tablesGo">Start 20 cards</button></div>`;
+  const box = $("qbox");
+  const sync = () => { box.querySelectorAll(".tbtn[data-t]:not(.all)").forEach(b => b.classList.toggle("on", timesTables.includes(+b.dataset.t))); try { localStorage.setItem("mm_tables", JSON.stringify(timesTables)); } catch (e) {} };
+  box.querySelectorAll(".tbtn").forEach(b => b.addEventListener("click", () => {
+    if (b.dataset.t === "all") timesTables = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    else { const n = +b.dataset.t; timesTables = timesTables.includes(n) ? timesTables.filter(v => v !== n) : [...timesTables, n].sort((p, q) => p - q); }
+    sync();
+  }));
+  box.querySelector("#tablesGo").addEventListener("click", () => {
+    if (!timesTables.length) { $("msg").textContent = "Pick at least one table."; return; }
+    timesStart = Date.now(); streak = 0; bestStreak = 0; lastFact = "";
+    nextQuestion();
+  });
+  if (autoRead) speak("Which tables do you want to practice?");
+}
+
+const GENS = { flash: genFlash, times: genTimes, area: genArea, std: genStd, why: genWhy, div: genDiv, form: genForm, place: genPlace };
+const ROUND = { flash: 10, times: 20, area: 5, std: 5, why: 6, div: 5, form: 8, place: 8, mix: 8 };
+const NAMES = { flash: "flash cards", times: "times table cards", area: "area models", std: "standard algorithm problems", why: "decimal puzzles", div: "long division problems", form: "standard form problems", place: "place value puzzles", mix: "mixed problems" };
 
 /* ---------- game loop ---------- */
 let mode = null, idx = 0, results = [], helped = false, done = false, cur = null;
@@ -1120,11 +1201,11 @@ function drawStars() {
   }
 }
 
-function startGame(m) { mode = m; idx = 0; results = []; nextQuestion(); }
+function startGame(m) { mode = m; idx = 0; results = []; if (m === "times") showTablePicker(); else nextQuestion(); }
 
 function nextQuestion() {
   helped = false; done = false; hintStep = -1; hintLevel = 0;
-  const gen = mode === "mix" ? pick(Object.values(GENS)) : GENS[mode];
+  const gen = mode === "mix" ? pick(Object.entries(GENS).filter(([k]) => k !== "times").map(([, g]) => g)) : GENS[mode];
   cur = gen();
   show("game"); drawStars();
   $("qTitle").textContent = cur.title;
@@ -1216,13 +1297,16 @@ function check() {
     if (!good) { void el.offsetWidth; el.classList.add("wrong"); ok = false; }
   });
   if (ok) { $("msg").textContent = ""; solved(); }
-  else $("msg").textContent = inputs.some(el => el.classList.contains("wrong"))
-    ? "Not quite. Fix the pink boxes." : "Fill in every box first.";
+  else {
+    if (inputs.some(el => el.classList.contains("wrong"))) { if (mode === "times") helped = true; $("msg").textContent = "Not quite. Fix the pink boxes."; }
+    else $("msg").textContent = "Fill in every box first.";
+  }
 }
 
 function solved() {
   done = true;
   results[idx] = helped ? "helped" : "clean";
+  if (mode === "times") { streak = helped ? 0 : streak + 1; bestStreak = Math.max(bestStreak, streak); }
   $("qbox").querySelectorAll("input").forEach(el => { el.readOnly = true; el.classList.remove("hintfocus"); });
   if (cur.onDone) cur.onDone();
   $("hintBox").classList.add("hidden");
@@ -1250,6 +1334,17 @@ function showFinish() {
   const n = ROUND[mode], clean = results.filter(r => r === "clean").length;
   $("finalMsg").textContent = clean === n ? `All ${n} ${NAMES[mode]} with no help. Amazing!` : `You finished all ${n} ${NAMES[mode]}! ${clean} with no help.`;
   $("finalList").innerHTML = `<li>${"⭐".repeat(clean)}${"💙".repeat(n - clean)}</li>`;
+  if (mode === "times") {
+    const secs = Math.round((Date.now() - timesStart) / 1000), mm = Math.floor(secs / 60), ss = String(secs % 60).padStart(2, "0");
+    $("finalList").innerHTML += `<li>⏱ ${mm}:${ss} for ${n} cards</li><li>🔥 Best streak: ${bestStreak}</li>`;
+    let best = null;
+    try { best = JSON.parse(localStorage.getItem("mm_times_best") || "null"); } catch (e) {}
+    const key = timesTables.join(",");
+    if (clean === n && (!best || best.key !== key || secs < best.secs)) {
+      try { localStorage.setItem("mm_times_best", JSON.stringify({ key, secs })); } catch (e) {}
+      if (best && best.key === key) $("finalList").innerHTML += `<li>🏆 New best time!</li>`;
+    }
+  }
 }
 
 document.querySelectorAll("#menu [data-mode]").forEach(b => b.addEventListener("click", () => startGame(b.dataset.mode)));
