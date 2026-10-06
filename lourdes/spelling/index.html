@@ -147,7 +147,7 @@ a.home { color: var(--chalk-dim); font-size: .95rem; }
 
   <!-- Menu -->
   <section id="menu">
-    <p class="sub">Ten words. Three ways to play.</p>
+    <p class="sub"><span id="wordCount"></span> words. Three ways to play.</p>
     <div class="row">
       <button class="btn main menu" id="playBuild">Build the word<span>Hear it, hide it, spell it with letter tiles</span></button>
     </div>
@@ -219,18 +219,17 @@ a.home { color: var(--chalk-dim); font-size: .95rem; }
 </main>
 
 <script>
-const WORDS = ["smiling","racing","hoping","baking","inviting","confusing","tasting","competing","hopping","were"];
+const WORDS = ["it's","that's","she's","isn't","aren't","wasn't","I'll","you'll","she'll"];
 const LOOKALIKES = {
-  smiling:   ["smileing","smilling","smiliing"],
-  racing:    ["raceing","rasing","raccing"],
-  hoping:    ["hopeing","hopin","hoaping"],
-  baking:    ["bakeing","bakking","baiking"],
-  inviting:  ["inviteing","invitting","inviteng"],
-  confusing: ["confuseing","confussing","confuzing"],
-  tasting:   ["tasteing","tastting","taisting"],
-  competing: ["competeing","competting","compeeting"],
-  hopping:   ["hoppeing","hoppping","hoppinng"],
-  were:      ["wer","werre","whre"]
+  "it's":   ["i'ts","its'","itt's"],
+  "that's": ["thats","tha'ts","thats'"],
+  "she's":  ["shes","sh'es","shes'"],
+  "isn't":  ["isnt","is'nt","isn'nt"],
+  "aren't": ["arent","are'nt","arn't"],
+  "wasn't": ["wasnt","was'nt","wasen't"],
+  "I'll":   ["I'l","Il'l","I'lll"],
+  "you'll": ["youll","you'l","yo'ull"],
+  "she'll": ["she'l","sh'ell","shel'l"]
 };
 const CHEERS = ["Great job!","You got it!","Super speller!","Awesome!","Nailed it!","Way to go!","Slay, girl!","Six seven!","Clock it, girl!"];
 const DECOYS = "abcdehimnoprstuwy";
@@ -320,7 +319,7 @@ function showSpell() {
   }
 
   let letters = w.split("");
-  const pool = shuffle(DECOYS.split("").filter(c => !w.includes(c)));
+  const pool = shuffle(DECOYS.split("").filter(c => !w.toLowerCase().includes(c)));
   letters.push(pool[0], pool[1]);
   letters = shuffle(letters);
 
@@ -331,7 +330,7 @@ function showSpell() {
     b.className = "tile";
     b.textContent = ch;
     b.dataset.ch = ch;
-    b.setAttribute("aria-label", "letter " + ch);
+    b.setAttribute("aria-label", ch === "'" ? "apostrophe" : "letter " + ch);
     b.addEventListener("click", () => tryLetter(b));
     tiles.appendChild(b);
   });
@@ -439,8 +438,8 @@ function showFinish() {
   show("finish");
   const clean = results.filter(r => r === "clean").length;
   $("finalMsg").textContent = clean === order.length
-    ? "All 10 words with no help. Amazing!"
-    : "You finished all 10! " + clean + " with no help.";
+    ? "All " + order.length + " words with no help. Amazing!"
+    : "You finished all " + order.length + "! " + clean + " with no help.";
   const list = $("finalList");
   list.innerHTML = "";
   order.forEach((w, i) => {
@@ -461,6 +460,7 @@ function clearHint() {
 }
 
 $("wordlist").textContent = WORDS.join(" · ");
+$("wordCount").textContent = ["","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten","Eleven","Twelve"][WORDS.length] || WORDS.length;
 $("playBuild").addEventListener("click", () => startGame("build"));
 $("playSpot").addEventListener("click", () => startGame("spot"));
 $("playHard").addEventListener("click", () => startGame("hard"));
@@ -499,10 +499,10 @@ document.addEventListener("keydown", e => {
   if ($("spell").classList.contains("hidden")) return;
   if (!$("nextRow").classList.contains("hidden")) return;
   const k = e.key.toLowerCase();
-  if (!/^[a-z]$/.test(k)) return;
+  if (!/^[a-z']$/.test(k)) return;
   const tiles = [...document.querySelectorAll(".tile:not(.used)")];
-  const right = tiles.find(t => t.dataset.ch === k && k === word()[pos]);
-  const any = tiles.find(t => t.dataset.ch === k);
+  const right = tiles.find(t => t.dataset.ch.toLowerCase() === k && k === word()[pos].toLowerCase());
+  const any = tiles.find(t => t.dataset.ch.toLowerCase() === k);
   if (right) tryLetter(right);
   else if (any) tryLetter(any);
 });
